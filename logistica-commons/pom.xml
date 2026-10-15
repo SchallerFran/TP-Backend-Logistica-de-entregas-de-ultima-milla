@@ -17,7 +17,7 @@
 
     <groupId>utnfc.isi.back.logistica</groupId>
     <artifactId>logistica-commons</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <packaging>jar</packaging>
     <name>logistica-commons</name>
     <description>Clases compartidas por los microservicios de logistica</description>
