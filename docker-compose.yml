@@ -1,0 +1,176 @@
+name: tpi-logistica
+
+# Solo api-gateway (8080) y keycloak (8180) publican puertos al host.
+# Postgres y los microservicios quedan accesibles unicamente dentro de la
+# red interna de Docker.
+
+services:
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: tpi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [logistica]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8
+    container_name: tpi-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      # Problema del issuer en Docker: el token se pide desde el host
+      # (http://localhost:8180) pero se valida dentro de la red de Docker,
+      # donde ese host no existe. Fijando KC_HOSTNAME, Keycloak emite SIEMPRE
+      # iss=http://localhost:8180/realms/logistica, sin importar por donde
+      # entro el pedido. Los servicios esperan ese issuer y bajan las claves
+      # por jwk-set-uri interno (http://keycloak:8080/...). Como Spring usa
+      # jwk-set-uri cuando esta definido, no intenta el discovery contra el
+      # issuer publico y la validacion funciona en los dos sentidos.
+      KC_HOSTNAME: http://localhost:8180
+      KC_HTTP_PORT: 8080
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infra/realm-logistica.json:/opt/keycloak/data/import/realm-logistica.json:ro
+    ports:
+      - "8180:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q '\"status\": \"UP\"' <&3"
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks: [logistica]
+
+  pedidos-service:
+    build:
+      # Contexto en la raiz: el Dockerfile necesita logistica-commons.
+      context: .
+      dockerfile: pedidos-service/Dockerfile
+    container_name: tpi-pedidos
+    restart: unless-stopped
+    environment:
+      PEDIDOS_DB_HOST: postgres
+      PEDIDOS_DB_PORT: 5432
+      PEDIDOS_DB_NAME: pedidos_db
+      PEDIDOS_DB_USER: ${PEDIDOS_DB_USER}
+      PEDIDOS_DB_PASSWORD: ${PEDIDOS_DB_PASSWORD}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI}
+      KEYCLOAK_TOKEN_URI: ${KEYCLOAK_TOKEN_URI}
+      SERVICE_CLIENT_ID: ${SERVICE_CLIENT_ID}
+      SERVICE_CLIENT_SECRET: ${SERVICE_CLIENT_SECRET}
+      DESPACHO_SERVICE_URL: http://despacho-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q '\"status\":\"UP\"' <&3"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks: [logistica]
+    # Sin "ports": solo accesible a traves del gateway.
+
+  despacho-service:
+    build:
+      context: .
+      dockerfile: despacho-service/Dockerfile
+    container_name: tpi-despacho
+    restart: unless-stopped
+    environment:
+      DESPACHO_DB_HOST: postgres
+      DESPACHO_DB_PORT: 5432
+      DESPACHO_DB_NAME: despacho_db
+      DESPACHO_DB_USER: ${DESPACHO_DB_USER}
+      DESPACHO_DB_PASSWORD: ${DESPACHO_DB_PASSWORD}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI}
+      KEYCLOAK_TOKEN_URI: ${KEYCLOAK_TOKEN_URI}
+      SERVICE_CLIENT_ID: ${SERVICE_CLIENT_ID}
+      SERVICE_CLIENT_SECRET: ${SERVICE_CLIENT_SECRET}
+      PEDIDOS_SERVICE_URL: http://pedidos-service:8081
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c "exec 3<>/dev/tcp/127.0.0.1/8082 && printf 'GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q '\"status\":\"UP\"' <&3"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks: [logistica]
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: tpi-gateway
+    restart: unless-stopped
+    environment:
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI}
+      PEDIDOS_SERVICE_URL: http://pedidos-service:8081
+      DESPACHO_SERVICE_URL: http://despacho-service:8082
+    ports:
+      - "8080:8080"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      pedidos-service:
+        condition: service_started
+      despacho-service:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q '\"status\":\"UP\"' <&3"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks: [logistica]
+
+volumes:
+  pgdata:
+
+networks:
+  logistica:
+    driver: bridge

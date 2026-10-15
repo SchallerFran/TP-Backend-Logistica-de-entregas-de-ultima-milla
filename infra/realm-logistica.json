@@ -1,0 +1,92 @@
+{
+  "realm": "logistica",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 900,
+  "roles": {
+    "realm": [
+      { "name": "CLIENTE", "description": "Genera y consulta sus propios pedidos" },
+      { "name": "DESPACHANTE", "description": "Asigna pedidos a repartidores" },
+      { "name": "REPARTIDOR", "description": "Actualiza el estado de sus entregas" },
+      { "name": "ADMIN", "description": "Administracion total del sistema" },
+      { "name": "SERVICE", "description": "Llamadas maquina a maquina entre microservicios" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "logistica-public",
+      "name": "Cliente publico (pruebas)",
+      "description": "Client publico para obtener tokens en Postman/curl (password grant)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"]
+    },
+    {
+      "clientId": "logistica-service",
+      "name": "Cliente confidencial (service account)",
+      "description": "Usado por los microservicios para llamarse entre si con el rol SERVICE",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "dev-service-secret-cambiar",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "cliente1",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Clara",
+      "lastName": "Cliente",
+      "email": "cliente1@logistica.local",
+      "credentials": [{ "type": "password", "value": "cliente1", "temporary": false }],
+      "realmRoles": ["CLIENTE"]
+    },
+    {
+      "username": "despachante1",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dario",
+      "lastName": "Despachante",
+      "email": "despachante1@logistica.local",
+      "credentials": [{ "type": "password", "value": "despachante1", "temporary": false }],
+      "realmRoles": ["DESPACHANTE"]
+    },
+    {
+      "username": "repartidor1",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Rita",
+      "lastName": "Repartidora",
+      "email": "repartidor1@logistica.local",
+      "credentials": [{ "type": "password", "value": "repartidor1", "temporary": false }],
+      "realmRoles": ["REPARTIDOR"]
+    },
+    {
+      "username": "admin1",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Ana",
+      "lastName": "Admin",
+      "email": "admin1@logistica.local",
+      "credentials": [{ "type": "password", "value": "admin1", "temporary": false }],
+      "realmRoles": ["ADMIN"]
+    },
+    {
+      "username": "service-account-logistica-service",
+      "enabled": true,
+      "serviceAccountClientId": "logistica-service",
+      "realmRoles": ["SERVICE"]
+    }
+  ]
+}

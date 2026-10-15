@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      # Prefijo vigente desde Spring Cloud Gateway 4.3:
+      # spring.cloud.gateway.routes quedo deprecado a favor de
+      # spring.cloud.gateway.server.webflux.routes
+      server:
+        webflux:
+          routes:
+            - id: pedidos-service
+              uri: ${PEDIDOS_SERVICE_URL:http://pedidos-service:8081}
+              predicates:
+                - Path=/api/pedidos/**
+            - id: despacho-service
+              uri: ${DESPACHO_SERVICE_URL:http://despacho-service:8082}
+              predicates:
+                - Path=/api/despacho/**
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # issuer-uri = valor esperado del claim "iss" (host publico de Keycloak).
+          # jwk-set-uri = URL interna de Docker para bajar las claves.
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/logistica}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://keycloak:8080/realms/logistica/protocol/openid-connect/certs}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

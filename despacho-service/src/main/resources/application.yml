@@ -1,0 +1,65 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: despacho-service
+
+  datasource:
+    url: jdbc:postgresql://${DESPACHO_DB_HOST:localhost}:${DESPACHO_DB_PORT:5432}/${DESPACHO_DB_NAME:despacho_db}
+    username: ${DESPACHO_DB_USER:despacho_user}
+    password: ${DESPACHO_DB_PASSWORD:despacho_pass}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # issuer-uri = valor esperado del claim "iss" (host publico de Keycloak).
+          # jwk-set-uri = de donde se bajan las claves; dentro de Docker se
+          # sobreescribe por la URL interna http://keycloak:8080/...
+          # Al definir jwk-set-uri, Spring NO hace el discovery contra el issuer,
+          # asi que la validacion funciona aunque el host publico no sea alcanzable.
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/logistica}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/certs}
+
+servicios:
+  pedidos:
+    url: ${PEDIDOS_SERVICE_URL:http://localhost:8081}
+
+google:
+  maps:
+    # Nunca hardcodear la clave: siempre por variable de entorno.
+    apikey: ${GOOGLE_MAPS_API_KEY:}
+    distance-matrix-url: https://maps.googleapis.com/maps/api/distancematrix/json
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+keycloak:
+  # Usado para pedir tokens con client_credentials en las llamadas entre
+  # servicios (rol SERVICE). Todavia sin uso: es solo configuracion.
+  token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/token}
+  service-client-id: ${SERVICE_CLIENT_ID:logistica-service}
+  service-client-secret: ${SERVICE_CLIENT_SECRET:}

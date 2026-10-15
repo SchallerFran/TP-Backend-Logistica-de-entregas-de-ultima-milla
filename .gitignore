@@ -1,0 +1,24 @@
+# Build
+target/
+build/
+*.jar
+*.war
+
+# Entorno (secretos reales)
+.env
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse / VS Code
+.classpath
+.project
+.settings/
+.vscode/
+
+# SO
+.DS_Store
+Thumbs.db

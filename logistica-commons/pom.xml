@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Parent EXTERNO solamente (gestion de versiones de Spring).
+         Este proyecto NO es modulo de ningun reactor: se construye e instala
+         por separado con "mvn clean install" y los servicios lo consumen
+         desde el repositorio local (.m2). -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.16</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>utnfc.isi.back.logistica</groupId>
+    <artifactId>logistica-commons</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <name>logistica-commons</name>
+    <description>Clases compartidas por los microservicios de logistica</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- provided: el JAR no impone versiones de Spring al consumidor.
+             Cada servicio ya trae estos starters con la version de su Boot. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- Sin spring-boot-maven-plugin: es un JAR plano de librerias, no un ejecutable. -->
+</project>
