@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # TPI Backend - Logistica de entregas de ultima milla
 
 Sistema de microservicios para gestion de pedidos y despacho de entregas de
