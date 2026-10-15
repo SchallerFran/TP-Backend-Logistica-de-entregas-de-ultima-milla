@@ -12,7 +12,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import utnfc.isi.back.logistica.commons.EstadoPedido;
 
 /**
  * Entidad minima de ejemplo: solo fija la convencion, sin logica de negocio.
@@ -37,5 +36,5 @@ public class Envio {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private EstadoPedido estado;
+    private EstadoEnvio estado;
 }
