@@ -13,7 +13,7 @@ Cada uno tiene su propio `pom.xml` y se construye por separado.
 
 | Proyecto | Artifact | Puerto | Descripcion |
 |---|---|---|---|
-| `logistica-commons` | `logistica-commons:1.0.0` | - | JAR comun (errores, roles, enums, Coordenada) |
+| `logistica-commons` | `logistica-commons:1.1.0` | - | JAR comun (errores, roles, Coordenada) |
 | `api-gateway` | `api-gateway:1.0.0` | 8080 | Spring Cloud Gateway (WebFlux) + validacion de JWT |
 | `pedidos-service` | `pedidos-service:1.0.0` | 8081 | Pedidos (Spring MVC + JPA) |
 | `despacho-service` | `despacho-service:1.0.0` | 8082 | Despacho/envios + Google Distance Matrix |
@@ -38,7 +38,7 @@ cd ../api-gateway      && mvn clean package
 ```
 
 Si se saltea el paso 1, los servicios fallan con
-`Could not resolve dependencies ... logistica-commons:jar:1.0.0`.
+`Could not resolve dependencies ... logistica-commons:jar:1.1.0`.
 
 ## Levantar todo con Docker
 
@@ -190,7 +190,7 @@ Los diagramas C4 (contexto y contenedores) están en `docs/diagramas/`.
 | `api-gateway` | Punto de entrada. Enruta, valida JWT (Security Filter) y bloquea `/internal/**` |
 | `pedidos-service` | Alta y ciclo de vida del pedido, control de intentos, cancelación e historial de eventos |
 | `despacho-service` | Centros, vehículos y repartidores; asignación y ejecución de rutas; integración con Google Maps |
-| `logistica-commons` | JAR Maven compartido: manejo de errores, conversor de roles de Keycloak, enums y `Coordenada` |
+| `logistica-commons` | JAR Maven compartido: manejo de errores, conversor de roles de Keycloak y `Coordenada` |
 
 ### Colaboración entre servicios
 
