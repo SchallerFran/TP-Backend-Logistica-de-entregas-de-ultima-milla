@@ -17,6 +17,10 @@ spring:
               uri: ${PEDIDOS_SERVICE_URL:http://pedidos-service:8081}
               predicates:
                 - Path=/api/pedidos/**
+            - id: pedidos-service-clientes
+              uri: ${PEDIDOS_SERVICE_URL:http://pedidos-service:8081}
+              predicates:
+                - Path=/api/clientes/**
             - id: despacho-service
               uri: ${DESPACHO_SERVICE_URL:http://despacho-service:8082}
               predicates:
