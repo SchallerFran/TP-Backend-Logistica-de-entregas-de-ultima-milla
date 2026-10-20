@@ -1,8 +1,8 @@
 package utnfc.isi.back.logistica.despacho.service.planificacion;
 
 import utnfc.isi.back.logistica.despacho.dto.internal.PedidoPendienteDTO;
-import utnfc.isi.back.logistica.commons.Prioridad;
-import utnfc.isi.back.logistica.despacho.geo.Coordenada;
+import utnfc.isi.back.logistica.despacho.dto.internal.Prioridad;
+import utnfc.isi.back.logistica.commons.Coordenada;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;

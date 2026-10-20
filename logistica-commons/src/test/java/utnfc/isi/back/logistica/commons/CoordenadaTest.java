@@ -1,4 +1,4 @@
-package utnfc.isi.back.logistica.despacho.geo;
+package utnfc.isi.back.logistica.commons;
 
 import org.junit.jupiter.api.Test;
 

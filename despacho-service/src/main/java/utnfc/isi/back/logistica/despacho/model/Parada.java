@@ -1,6 +1,6 @@
 package utnfc.isi.back.logistica.despacho.model;
 
-import utnfc.isi.back.logistica.despacho.geo.Coordenada;
+import utnfc.isi.back.logistica.commons.Coordenada;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

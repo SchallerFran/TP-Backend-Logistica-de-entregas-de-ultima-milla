@@ -1,8 +1,8 @@
 package utnfc.isi.back.logistica.despacho.service;
 
 import utnfc.isi.back.logistica.despacho.dto.internal.PedidoPendienteDTO;
-import utnfc.isi.back.logistica.commons.Prioridad;
-import utnfc.isi.back.logistica.despacho.geo.Coordenada;
+import utnfc.isi.back.logistica.despacho.dto.internal.Prioridad;
+import utnfc.isi.back.logistica.commons.Coordenada;
 import utnfc.isi.back.logistica.despacho.config.DespachoProperties;
 import utnfc.isi.back.logistica.despacho.model.Parada;
 import utnfc.isi.back.logistica.despacho.model.Repartidor;

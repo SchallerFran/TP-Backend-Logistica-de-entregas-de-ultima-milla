@@ -1,7 +1,5 @@
 package utnfc.isi.back.logistica.despacho.dto.internal;
 
-import utnfc.isi.back.logistica.commons.Prioridad;
-
 import java.time.LocalDateTime;
 
 /**

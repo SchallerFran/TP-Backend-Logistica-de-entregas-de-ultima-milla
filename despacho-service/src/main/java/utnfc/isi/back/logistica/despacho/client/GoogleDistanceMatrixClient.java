@@ -1,6 +1,6 @@
 package utnfc.isi.back.logistica.despacho.client;
 
-import utnfc.isi.back.logistica.despacho.geo.Coordenada;
+import utnfc.isi.back.logistica.commons.Coordenada;
 import utnfc.isi.back.logistica.despacho.config.DespachoProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;

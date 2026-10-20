@@ -4,7 +4,7 @@ import utnfc.isi.back.logistica.despacho.dto.internal.*;
 import utnfc.isi.back.logistica.despacho.exception.RecursoNoEncontradoException;
 import utnfc.isi.back.logistica.despacho.exception.ReglaNegocioException;
 import utnfc.isi.back.logistica.despacho.exception.ServicioNoDisponibleException;
-import utnfc.isi.back.logistica.despacho.geo.Coordenada;
+import utnfc.isi.back.logistica.commons.Coordenada;
 import utnfc.isi.back.logistica.despacho.client.PedidosClient;
 import utnfc.isi.back.logistica.despacho.client.PedidosNoDisponibleException;
 import utnfc.isi.back.logistica.despacho.client.PedidosRechazoException;

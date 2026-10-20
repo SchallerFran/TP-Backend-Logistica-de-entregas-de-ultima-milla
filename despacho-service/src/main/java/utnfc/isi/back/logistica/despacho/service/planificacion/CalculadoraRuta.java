@@ -1,7 +1,7 @@
 package utnfc.isi.back.logistica.despacho.service.planificacion;
 
 import utnfc.isi.back.logistica.despacho.dto.internal.PedidoPendienteDTO;
-import utnfc.isi.back.logistica.despacho.geo.Coordenada;
+import utnfc.isi.back.logistica.commons.Coordenada;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;

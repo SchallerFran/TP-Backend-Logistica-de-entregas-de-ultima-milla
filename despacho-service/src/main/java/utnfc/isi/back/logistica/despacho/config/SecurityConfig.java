@@ -17,7 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
  * despacho-service es un resource server: TODA petición trae un JWT de Keycloak.
  * <p>
  * Defensa en profundidad: el gateway ya filtra por rol, pero el servicio vuelve a validar el token y
- * los roles porque dentro de la red de docker alguien podría llamarlo sin pasar por el gateway.
+ * los roles porque dentro de la red interna alguien podría llamarlo sin pasar por el gateway.
  * <p>
  * Reglas gruesas por URL acá; las reglas por propiedad ("el repartidor sólo su ruta") se controlan
  * en la capa de servicio, porque dependen de datos.

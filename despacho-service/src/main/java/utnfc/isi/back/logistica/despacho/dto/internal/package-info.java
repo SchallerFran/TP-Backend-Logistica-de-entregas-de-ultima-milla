@@ -1,11 +1,11 @@
 /**
  * Contrato de la API interna (/internal/**) entre pedidos-service y despacho-service.
  * <p>
- * Viven en el JAR común porque son el "lenguaje publicado" entre los dos servicios: si cambia un
- * campo, cambia para ambos en el mismo commit y el compilador avisa en los dos lados.
+ * Cada servicio tiene su propia copia del contrato (no viven en el JAR común): así ninguno depende de
+ * las clases internas del otro y los enums del pedido siguen siendo de pedidos-service.
  * Son records inmutables, sin anotaciones de JPA ni de Jackson (Jackson 2.12+ serializa records).
  * <p>
- * Endpoints que los usan (ver docs/CONTRATO-INTERNO.md):
+ * Endpoints que los usan:
  * <ul>
  *   <li>pedidos-service  GET  /internal/pedidos/pendientes?centroId&amp;fecha → List&lt;PedidoPendienteDTO&gt;</li>
  *   <li>pedidos-service  POST /internal/pedidos/asignaciones → ConfirmacionAsignacionResponse</li>

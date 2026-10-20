@@ -1,6 +1,6 @@
 package utnfc.isi.back.logistica.despacho.service.planificacion;
 
-import utnfc.isi.back.logistica.despacho.geo.Coordenada;
+import utnfc.isi.back.logistica.commons.Coordenada;
 
 import java.time.LocalDate;
 

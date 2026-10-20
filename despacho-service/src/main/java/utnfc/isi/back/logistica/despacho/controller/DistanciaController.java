@@ -1,6 +1,6 @@
 package utnfc.isi.back.logistica.despacho.controller;
 
-import utnfc.isi.back.logistica.despacho.geo.Coordenada;
+import utnfc.isi.back.logistica.commons.Coordenada;
 import utnfc.isi.back.logistica.despacho.dto.DistanciaResponse;
 import utnfc.isi.back.logistica.despacho.service.DistanciaService;
 import io.swagger.v3.oas.annotations.Operation;
