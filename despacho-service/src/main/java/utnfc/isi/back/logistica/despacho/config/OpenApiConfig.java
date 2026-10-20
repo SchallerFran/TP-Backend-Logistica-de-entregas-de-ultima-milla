@@ -1,30 +1,20 @@
 package utnfc.isi.back.logistica.despacho.config;
 
-import io.swagger.v3.oas.models.Components;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.security.SecurityRequirement;
-import io.swagger.v3.oas.models.security.SecurityScheme;
-import org.springframework.context.annotation.Bean;
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
+import io.swagger.v3.oas.annotations.info.Info;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import org.springframework.context.annotation.Configuration;
 
+/** Swagger UI con botón "Authorize" para pegar el access token de Keycloak. */
 @Configuration
+@OpenAPIDefinition(
+        info = @Info(title = "despacho-service",
+                version = "1.0.0",
+                description = "Operación logística: centros, flota y repartidores; planificación, "
+                        + "confirmación y ejecución de rutas; integración con Google Distance Matrix."),
+        security = @SecurityRequirement(name = "bearerAuth"))
+@SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 public class OpenApiConfig {
-
-    private static final String ESQUEMA_BEARER = "bearer-jwt";
-
-    @Bean
-    public OpenAPI despachoOpenAPI() {
-        return new OpenAPI()
-                .info(new Info()
-                        .title("Despacho Service API")
-                        .version("1.0.0")
-                        .description("Asignacion y seguimiento de envios de ultima milla"))
-                .addSecurityItem(new SecurityRequirement().addList(ESQUEMA_BEARER))
-                .components(new Components().addSecuritySchemes(ESQUEMA_BEARER,
-                        new SecurityScheme()
-                                .type(SecurityScheme.Type.HTTP)
-                                .scheme("bearer")
-                                .bearerFormat("JWT")));
-    }
 }

@@ -9,37 +9,45 @@ spring:
     url: jdbc:postgresql://${DESPACHO_DB_HOST:localhost}:${DESPACHO_DB_PORT:5432}/${DESPACHO_DB_NAME:despacho_db}
     username: ${DESPACHO_DB_USER:despacho_user}
     password: ${DESPACHO_DB_PASSWORD:despacho_pass}
-    driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
+      # Para el TPI alcanza con update. En un entorno real se usaría Flyway/Liquibase + validate.
       ddl-auto: update
     open-in-view: false
+    # data.sql (datos semilla) se ejecuta después de que Hibernate crea las tablas
+    defer-datasource-initialization: true
     properties:
       hibernate:
         format_sql: true
+        # Ordena los UPDATE por PK: necesario al renumerar paradas por la restricción única (ruta_id, orden)
+        order_updates: true
+
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:always}
 
   security:
     oauth2:
+      # (1) Resource server: valida los JWT que llegan (de usuarios vía gateway, o de pedidos-service)
       resourceserver:
         jwt:
-          # issuer-uri = valor esperado del claim "iss" (host publico de Keycloak).
-          # jwk-set-uri = de donde se bajan las claves; dentro de Docker se
-          # sobreescribe por la URL interna http://keycloak:8080/...
-          # Al definir jwk-set-uri, Spring NO hace el discovery contra el issuer,
-          # asi que la validacion funciona aunque el host publico no sea alcanzable.
+          # issuer que viene DENTRO del token (lo que ve el usuario: http://localhost:8180/...)
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/logistica}
+          # de dónde bajar las claves públicas (dentro de docker: http://keycloak:8080/...)
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/certs}
-
-servicios:
-  pedidos:
-    url: ${PEDIDOS_SERVICE_URL:http://localhost:8081}
-
-google:
-  maps:
-    # Nunca hardcodear la clave: siempre por variable de entorno.
-    apikey: ${GOOGLE_MAPS_API_KEY:}
-    distance-matrix-url: https://maps.googleapis.com/maps/api/distancematrix/json
+      # (2) Cliente OAuth2: despacho pide su propio token para llamar a /internal de pedidos-service
+      client:
+        registration:
+          logistica-service:
+            provider: keycloak
+            client-id: ${SERVICE_CLIENT_ID:logistica-service}
+            client-secret: ${SERVICE_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+        provider:
+          keycloak:
+            # token-uri explícito (no issuer-uri) para que el arranque no dependa de que Keycloak esté arriba
+            token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/token}
 
 springdoc:
   swagger-ui:
@@ -57,9 +65,40 @@ management:
       probes:
         enabled: true
 
-keycloak:
-  # Usado para pedir tokens con client_credentials en las llamadas entre
-  # servicios (rol SERVICE). Todavia sin uso: es solo configuracion.
-  token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/token}
-  service-client-id: ${SERVICE_CLIENT_ID:logistica-service}
-  service-client-secret: ${SERVICE_CLIENT_SECRET:}
+logging:
+  level:
+    utnfc.isi.back.logistica: ${LOG_LEVEL:INFO}
+
+# ---------------------------------------------------------------------------------------------
+# Parámetros propios del servicio (ver config/DespachoProperties)
+# ---------------------------------------------------------------------------------------------
+despacho:
+  zona-horaria: ${TZ_OPERACION:America/Argentina/Cordoba}
+
+  planificacion:
+    # Minutos que el repartidor pasa en cada parada (estacionar, entregar, firmar)
+    tiempo-servicio-min: ${TIEMPO_SERVICIO_MIN:5}
+
+  pedidos:
+    base-url: ${PEDIDOS_SERVICE_URL:http://localhost:8081}
+    connect-timeout: 2s
+    read-timeout: 5s
+
+  notificaciones:
+    # Cada cuánto se reintentan las notificaciones a pedidos-service que quedaron pendientes
+    intervalo-ms: ${NOTIF_INTERVALO_MS:15000}
+    max-intentos: 50
+
+  distancias:
+    google:
+      base-url: https://maps.googleapis.com/maps/api
+      # Si está vacía no se consulta Google: se usa caché y, si no hay, estimación Haversine
+      api-key: ${GOOGLE_MAPS_API_KEY:}
+      connect-timeout: 2s
+      read-timeout: 5s
+    # Una distancia cacheada más vieja que esto se vuelve a consultar (si Google no responde se usa igual)
+    cache-ttl-dias: 30
+    # Fallback: km por calle ≈ km en línea recta × factor de rodeo
+    factor-rodeo: 1.3
+    # Fallback: velocidad promedio urbana para estimar tiempos
+    velocidad-promedio-kmh: 30
