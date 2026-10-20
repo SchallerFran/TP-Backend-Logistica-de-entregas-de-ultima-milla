@@ -62,4 +62,33 @@ public class DespachoClient {
         }
         return centro;
     }
+
+    /**
+     * DELETE /internal/paradas/pedido/{id}: quita el pedido de su ruta antes de cancelarlo.
+     *
+     * @throws IllegalArgumentException      si despacho responde 409: ya salio a la calle (-> 422)
+     * @throws ServicioNoDisponibleException si hay timeout, error de conexion u otro error (-> 503)
+     */
+    public void quitarDeRuta(Long pedidoId) {
+        try {
+            despachoRestClient.delete()
+                    .uri("/internal/paradas/pedido/{id}", pedidoId)
+                    .retrieve()
+                    .onStatus(status -> status.value() == HttpStatus.CONFLICT.value(),
+                            (request, response) -> {
+                                throw new IllegalArgumentException(
+                                        "El pedido " + pedidoId + " ya salio a la calle y no puede cancelarse");
+                            })
+                    .onStatus(HttpStatusCode::isError,
+                            (request, response) -> {
+                                throw new ServicioNoDisponibleException(
+                                        "despacho-service respondio " + response.getStatusCode()
+                                                + " al quitar el pedido " + pedidoId + " de su ruta");
+                            })
+                    .toBodilessEntity();
+        } catch (RestClientException ex) {
+            throw new ServicioNoDisponibleException(
+                    "No se pudo consultar despacho-service: " + ex.getMessage(), ex);
+        }
+    }
 }

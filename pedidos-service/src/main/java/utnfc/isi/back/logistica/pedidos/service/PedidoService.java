@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import utnfc.isi.back.logistica.pedidos.client.DespachoClient;
 import utnfc.isi.back.logistica.pedidos.dto.CambioEstadoDTO;
 import utnfc.isi.back.logistica.pedidos.dto.CentroDTO;
+import utnfc.isi.back.logistica.pedidos.dto.ConfirmacionAsignacionRequest;
+import utnfc.isi.back.logistica.pedidos.dto.ConfirmacionAsignacionResponse;
 import utnfc.isi.back.logistica.pedidos.dto.CrearPedidoRequest;
 import utnfc.isi.back.logistica.pedidos.dto.DestinatarioDTO;
 import utnfc.isi.back.logistica.pedidos.dto.EstadoActualDTO;
@@ -116,25 +118,26 @@ public class PedidoService {
                 .toList();
     }
 
-    /** Usa la regla del modelo: Pedido.cancelar(). */
+    /**
+     * Usa la regla del modelo: Pedido.cancelar(). Un pedido ASIGNADO esta en
+     * una ruta de despacho-service, que es el duenio de la ruta: primero se le
+     * pide quitarlo (422 si ya salio a la calle, 503 si no responde).
+     */
     @Transactional
     public PedidoDTO cancelar(Long id, String motivo, String usuario, boolean soloPropios) {
         Pedido pedido = buscarConAcceso(id, usuario, soloPropios);
+        if (pedido.getEstado() == EstadoPedido.ASIGNADO) {
+            despachoClient.quitarDeRuta(id);
+        }
         pedido.cancelar(motivo, usuario);
         return PedidoDTO.from(pedido);
     }
 
-    /**
-     * Reprogramacion de un pedido (DESPACHANTE/ADMIN).
-     *
-     * El enunciado pide NO_ASIGNABLE -> RECIBIDO, pero EstadoPedido no tiene
-     * NO_ASIGNABLE y el modelo no se puede tocar: se usa REPROGRAMADO, que el
-     * modelo admite desde ASIGNADO y EN_CAMINO.
-     */
+    /** NO_ASIGNABLE -> RECIBIDO (DESPACHANTE/ADMIN): vuelve a la cola de planificacion. */
     @Transactional
     public PedidoDTO reprogramar(Long id, String motivo, String usuario) {
         Pedido pedido = buscar(id);
-        pedido.cambiarEstado(EstadoPedido.REPROGRAMADO, motivo, usuario);
+        pedido.reprogramar(motivo, usuario);
         return PedidoDTO.from(pedido);
     }
 
@@ -170,25 +173,47 @@ public class PedidoService {
     }
 
     /**
-     * asignado = true  -> ASIGNADO.
-     * asignado = false -> el enunciado pide NO_ASIGNABLE, que no existe en
-     * EstadoPedido: el pedido queda en RECIBIDO (vuelve a la cola) y no se
-     * registra ningun cambio de estado.
+     * Confirmacion de una planificacion, en una sola transaccion.
+     * Pedidos de las rutas: RECIBIDO -> ASIGNADO (si ya estaba ASIGNADO se
+     * confirma igual: idempotente). Cualquier otro estado se rechaza para que
+     * despacho-service lo quite de la ruta.
+     * No asignables: RECIBIDO -> NO_ASIGNABLE con el motivo; en otro estado se ignoran.
      */
     @Transactional
-    public EstadoActualDTO registrarAsignacion(Long id, boolean asignado, String motivo, String servicio) {
-        Pedido pedido = buscar(id);
+    public ConfirmacionAsignacionResponse confirmarAsignacion(ConfirmacionAsignacionRequest request, String servicio) {
+        List<Long> confirmados = new ArrayList<>();
+        List<ConfirmacionAsignacionResponse.Rechazado> rechazados = new ArrayList<>();
 
-        if (!asignado) {
-            log.warn("Pedido {} no asignable (motivo: {}). Queda en {}: EstadoPedido no tiene NO_ASIGNABLE.",
-                    id, motivo, pedido.getEstado());
-            return EstadoActualDTO.from(pedido);
+        for (ConfirmacionAsignacionRequest.Ruta ruta : request.rutas()) {
+            for (Long pedidoId : ruta.pedidoIds()) {
+                Pedido pedido = pedidoRepository.findById(pedidoId).orElse(null);
+                if (pedido == null) {
+                    rechazados.add(new ConfirmacionAsignacionResponse.Rechazado(pedidoId, null, "El pedido no existe"));
+                    continue;
+                }
+                if (pedido.getEstado() == EstadoPedido.RECIBIDO) {
+                    pedido.cambiarEstado(EstadoPedido.ASIGNADO, "Asignado a la ruta " + ruta.rutaId(), servicio);
+                }
+                if (pedido.getEstado() == EstadoPedido.ASIGNADO) {
+                    confirmados.add(pedidoId);
+                } else {
+                    rechazados.add(new ConfirmacionAsignacionResponse.Rechazado(
+                            pedidoId, pedido.getEstado(), "El pedido esta en " + pedido.getEstado()));
+                }
+            }
         }
-        if (pedido.getEstado() == EstadoPedido.ASIGNADO) {
-            return EstadoActualDTO.from(pedido);
+
+        for (ConfirmacionAsignacionRequest.NoAsignable noAsignable : request.noAsignables()) {
+            String motivo = noAsignable.detalle() == null
+                    ? noAsignable.codigo()
+                    : noAsignable.codigo() + ": " + noAsignable.detalle();
+            pedidoRepository.findById(noAsignable.pedidoId())
+                    .filter(p -> p.getEstado() == EstadoPedido.RECIBIDO)
+                    .ifPresentOrElse(
+                            p -> p.cambiarEstado(EstadoPedido.NO_ASIGNABLE, motivo, servicio),
+                            () -> log.warn("Pedido {} no asignable ignorado: no esta en RECIBIDO", noAsignable.pedidoId()));
         }
-        pedido.cambiarEstado(EstadoPedido.ASIGNADO, motivo, servicio);
-        return EstadoActualDTO.from(pedido);
+        return new ConfirmacionAsignacionResponse(confirmados, rechazados);
     }
 
     /** El repartidor salio con el pedido: EN_CAMINO. */

@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import utnfc.isi.back.logistica.pedidos.dto.AsignacionRequest;
+import utnfc.isi.back.logistica.pedidos.dto.ConfirmacionAsignacionRequest;
+import utnfc.isi.back.logistica.pedidos.dto.ConfirmacionAsignacionResponse;
 import utnfc.isi.back.logistica.pedidos.dto.EstadoActualDTO;
 import utnfc.isi.back.logistica.pedidos.dto.PedidoPendienteDTO;
 import utnfc.isi.back.logistica.pedidos.dto.ResultadoEntregaRequest;
@@ -48,21 +49,16 @@ public class PedidoInternoController {
         return pedidoService.pendientes(centroId);
     }
 
-    @PostMapping("/{id}/asignacion")
-    @Operation(summary = "Resultado del intento de asignacion. Idempotente")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Estado resultante"),
-            @ApiResponse(responseCode = "404", description = "El pedido no existe"),
-            @ApiResponse(responseCode = "422", description = "Transicion no permitida")
-    })
-    public EstadoActualDTO asignacion(@AuthenticationPrincipal Jwt jwt,
-                                      @PathVariable Long id,
-                                      @Valid @RequestBody AsignacionRequest request) {
-        return pedidoService.registrarAsignacion(id, request.asignado(), request.motivo(), servicio(jwt));
+    @PostMapping("/asignaciones")
+    @Operation(summary = "Confirma una planificacion: ASIGNADO / NO_ASIGNABLE en una sola transaccion. Idempotente")
+    @ApiResponse(responseCode = "200", description = "Pedidos confirmados y rechazados")
+    public ConfirmacionAsignacionResponse asignaciones(@AuthenticationPrincipal Jwt jwt,
+                                                       @Valid @RequestBody ConfirmacionAsignacionRequest request) {
+        return pedidoService.confirmarAsignacion(request, servicio(jwt));
     }
 
-    @PostMapping("/{id}/salida")
-    @Operation(summary = "El pedido salio del centro: pasa a EN_CAMINO. Idempotente")
+    @PostMapping("/{id}/en-camino")
+    @Operation(summary = "El repartidor inicio la ruta: pasa a EN_CAMINO. Idempotente")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Estado resultante"),
             @ApiResponse(responseCode = "404", description = "El pedido no existe"),
@@ -72,7 +68,7 @@ public class PedidoInternoController {
         return pedidoService.registrarSalida(id, servicio(jwt));
     }
 
-    @PostMapping("/{id}/resultado")
+    @PostMapping("/{id}/resultado-entrega")
     @Operation(summary = "Resultado del intento de entrega. Idempotente")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Estado resultante"),

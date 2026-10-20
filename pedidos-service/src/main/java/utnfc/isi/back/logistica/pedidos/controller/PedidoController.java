@@ -105,12 +105,13 @@ public class PedidoController {
 
     @PostMapping("/{id}/cancelacion")
     @PreAuthorize("hasAnyRole('CLIENTE', 'DESPACHANTE', 'ADMIN')")
-    @Operation(summary = "Cancela el pedido (solo en RECIBIDO o ASIGNADO)")
+    @Operation(summary = "Cancela el pedido (solo antes de salir a la calle: RECIBIDO, ASIGNADO o NO_ASIGNABLE)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Pedido cancelado"),
             @ApiResponse(responseCode = "403", description = "El pedido es de otro cliente"),
             @ApiResponse(responseCode = "404", description = "El pedido no existe"),
-            @ApiResponse(responseCode = "422", description = "El pedido no puede cancelarse en su estado actual")
+            @ApiResponse(responseCode = "422", description = "El pedido no puede cancelarse en su estado actual"),
+            @ApiResponse(responseCode = "503", description = "Pedido ASIGNADO y despacho-service no responde: no se cancela")
     })
     public PedidoDTO cancelar(@AuthenticationPrincipal Jwt jwt,
                               Authentication authentication,
@@ -121,7 +122,7 @@ public class PedidoController {
 
     @PostMapping("/{id}/reprogramacion")
     @PreAuthorize("hasAnyRole('DESPACHANTE', 'ADMIN')")
-    @Operation(summary = "Reprograma el pedido (REPROGRAMADO; valido desde ASIGNADO o EN_CAMINO)")
+    @Operation(summary = "Reprograma un pedido NO_ASIGNABLE: vuelve a RECIBIDO para la proxima planificacion")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Pedido reprogramado"),
             @ApiResponse(responseCode = "404", description = "El pedido no existe"),

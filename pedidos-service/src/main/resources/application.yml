@@ -24,8 +24,7 @@ spring:
       resourceserver:
         jwt:
           # issuer-uri = valor esperado del claim "iss" (host publico de Keycloak).
-          # jwk-set-uri = de donde se bajan las claves; dentro de Docker se
-          # sobreescribe por la URL interna http://keycloak:8080/...
+          # jwk-set-uri = de donde se bajan las claves publicas.
           # Al definir jwk-set-uri, Spring NO hace el discovery contra el issuer,
           # asi que la validacion funciona aunque el host publico no sea alcanzable.
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/logistica}
@@ -52,8 +51,8 @@ management:
         enabled: true
 
 keycloak:
-  # Usado para pedir tokens con client_credentials en las llamadas entre
-  # servicios (rol SERVICE). Todavia sin uso: es solo configuracion.
+  # client_credentials para llamar a /internal de despacho-service (rol SERVICE).
+  # El secret por defecto es el de desarrollo de infra/realm-logistica.json.
   token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/token}
   service-client-id: ${SERVICE_CLIENT_ID:logistica-service}
-  service-client-secret: ${SERVICE_CLIENT_SECRET:}
+  service-client-secret: ${SERVICE_CLIENT_SECRET:dev-service-secret-cambiar}

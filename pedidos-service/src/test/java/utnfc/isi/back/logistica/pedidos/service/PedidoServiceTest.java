@@ -8,6 +8,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import utnfc.isi.back.logistica.pedidos.client.DespachoClient;
 import utnfc.isi.back.logistica.pedidos.dto.CentroDTO;
+import utnfc.isi.back.logistica.pedidos.dto.ConfirmacionAsignacionRequest;
+import utnfc.isi.back.logistica.pedidos.dto.ConfirmacionAsignacionResponse;
 import utnfc.isi.back.logistica.pedidos.dto.CrearPedidoRequest;
 import utnfc.isi.back.logistica.pedidos.dto.DestinatarioDTO;
 import utnfc.isi.back.logistica.pedidos.dto.EstadoActualDTO;
@@ -21,12 +23,14 @@ import utnfc.isi.back.logistica.pedidos.repository.ClienteRepository;
 import utnfc.isi.back.logistica.pedidos.repository.PedidoRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -189,30 +193,74 @@ class PedidoServiceTest {
     }
 
     @Test
-    @DisplayName("Asignacion repetida: idempotente, sin nuevo CambioEstado")
-    void asignacionIdempotente() {
+    @DisplayName("Cancelar un pedido ASIGNADO lo quita primero de su ruta en despacho")
+    void cancelarAsignadoQuitaDeLaRuta() {
         Pedido pedido = pedidoDe(cliente(true));
-        pedido.cambiarEstado(EstadoPedido.ASIGNADO, "primera asignacion", SERVICIO);
-        int cambiosPrevios = pedido.getCambios().size();
+        pedido.cambiarEstado(EstadoPedido.ASIGNADO, null, SERVICIO);
         when(pedidoRepository.findById(5L)).thenReturn(Optional.of(pedido));
 
-        EstadoActualDTO resultado = pedidoService.registrarAsignacion(5L, true, "reintento", SERVICIO);
+        pedidoService.cancelar(5L, "sin stock", "sub-despachante", false);
 
-        assertEquals(EstadoPedido.ASIGNADO, resultado.estado());
-        assertEquals(cambiosPrevios, pedido.getCambios().size());
+        verify(despachoClient).quitarDeRuta(5L);
+        assertEquals(EstadoPedido.CANCELADO, pedido.getEstado());
     }
 
     @Test
-    @DisplayName("Primera asignacion: RECIBIDO -> ASIGNADO con su CambioEstado")
-    void asignacionPrimeraVez() {
+    @DisplayName("Cancelar ASIGNADO con despacho caido: 503 y el pedido sigue ASIGNADO")
+    void cancelarAsignadoConDespachoCaido() {
+        Pedido pedido = pedidoDe(cliente(true));
+        pedido.cambiarEstado(EstadoPedido.ASIGNADO, null, SERVICIO);
+        when(pedidoRepository.findById(5L)).thenReturn(Optional.of(pedido));
+        doThrow(new ServicioNoDisponibleException("timeout"))
+                .when(despachoClient).quitarDeRuta(5L);
+
+        assertThrows(ServicioNoDisponibleException.class,
+                () -> pedidoService.cancelar(5L, "sin stock", "sub-despachante", false));
+
+        assertEquals(EstadoPedido.ASIGNADO, pedido.getEstado());
+    }
+
+    @Test
+    @DisplayName("Confirmacion: asigna los RECIBIDO, rechaza los cancelados y marca NO_ASIGNABLE")
+    void confirmarAsignacion() {
+        Pedido recibido = pedidoDe(cliente(true));
+        Pedido yaAsignado = pedidoDe(cliente(true));
+        yaAsignado.cambiarEstado(EstadoPedido.ASIGNADO, null, SERVICIO);
+        Pedido cancelado = pedidoDe(cliente(true));
+        cancelado.cancelar("se arrepintio", SUB_CLIENTE);
+        Pedido sinRecurso = pedidoDe(cliente(true));
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(recibido));
+        when(pedidoRepository.findById(2L)).thenReturn(Optional.of(yaAsignado));
+        when(pedidoRepository.findById(3L)).thenReturn(Optional.of(cancelado));
+        when(pedidoRepository.findById(4L)).thenReturn(Optional.of(sinRecurso));
+
+        ConfirmacionAsignacionResponse respuesta = pedidoService.confirmarAsignacion(
+                new ConfirmacionAsignacionRequest(
+                        List.of(new ConfirmacionAsignacionRequest.Ruta(10L, List.of(1L, 2L, 3L))),
+                        List.of(new ConfirmacionAsignacionRequest.NoAsignable(4L, "FUERA_DE_COBERTURA", "a 40 km"))),
+                SERVICIO);
+
+        assertEquals(List.of(1L, 2L), respuesta.confirmados());
+        assertEquals(1, respuesta.rechazados().size());
+        assertEquals(EstadoPedido.CANCELADO, respuesta.rechazados().get(0).estadoActual());
+        assertEquals(EstadoPedido.ASIGNADO, recibido.getEstado());
+        assertEquals(EstadoPedido.NO_ASIGNABLE, sinRecurso.getEstado());
+        assertEquals("FUERA_DE_COBERTURA: a 40 km", sinRecurso.getCambios().get(0).getMotivo());
+    }
+
+    @Test
+    @DisplayName("Reprogramar: NO_ASIGNABLE -> RECIBIDO; desde otro estado es 422")
+    void reprogramar() {
         Pedido pedido = pedidoDe(cliente(true));
         when(pedidoRepository.findById(5L)).thenReturn(Optional.of(pedido));
 
-        EstadoActualDTO resultado = pedidoService.registrarAsignacion(5L, true, "repartidor 3", SERVICIO);
+        assertThrows(IllegalArgumentException.class,
+                () -> pedidoService.reprogramar(5L, "nuevo vehiculo", "sub-despachante"));
 
-        assertEquals(EstadoPedido.ASIGNADO, resultado.estado());
-        assertEquals(1, pedido.getCambios().size());
-        assertEquals(SERVICIO, pedido.getCambios().get(0).getRealizadoPor());
+        pedido.cambiarEstado(EstadoPedido.NO_ASIGNABLE, "SIN_VEHICULO", SERVICIO);
+        pedidoService.reprogramar(5L, "nuevo vehiculo", "sub-despachante");
+
+        assertEquals(EstadoPedido.RECIBIDO, pedido.getEstado());
     }
 
     @Test
@@ -231,18 +279,6 @@ class PedidoServiceTest {
         assertEquals(EstadoPedido.RECIBIDO, reintento.estado());
         assertEquals(1, reintento.intentos());
         assertEquals(cambiosPrevios, pedido.getCambios().size());
-    }
-
-    @Test
-    @DisplayName("Sin NO_ASIGNABLE en el modelo, un rechazo deja el pedido en RECIBIDO")
-    void asignacionRechazada() {
-        Pedido pedido = pedidoDe(cliente(true));
-        when(pedidoRepository.findById(5L)).thenReturn(Optional.of(pedido));
-
-        EstadoActualDTO resultado = pedidoService.registrarAsignacion(5L, false, "sin repartidores", SERVICIO);
-
-        assertEquals(EstadoPedido.RECIBIDO, resultado.estado());
-        assertEquals(0, pedido.getCambios().size());
     }
 
     @Test

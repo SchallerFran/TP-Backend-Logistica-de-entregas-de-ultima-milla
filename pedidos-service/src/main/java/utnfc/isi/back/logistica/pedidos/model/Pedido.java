@@ -51,10 +51,10 @@ public class Pedido {
      * para casos particulares; DEVUELTO y CANCELADO son finales.
      */
     private static final Map<EstadoPedido, Set<EstadoPedido>> TRANSICIONES = Map.of(
-            EstadoPedido.RECIBIDO, Set.of(EstadoPedido.ASIGNADO, EstadoPedido.CANCELADO),
-            EstadoPedido.ASIGNADO, Set.of(EstadoPedido.EN_CAMINO, EstadoPedido.CANCELADO, EstadoPedido.REPROGRAMADO),
-            EstadoPedido.EN_CAMINO, Set.of(EstadoPedido.ENTREGADO, EstadoPedido.REPROGRAMADO, EstadoPedido.FALLIDO),
-            EstadoPedido.REPROGRAMADO, Set.of(EstadoPedido.EN_CAMINO, EstadoPedido.CANCELADO),
+            EstadoPedido.RECIBIDO, Set.of(EstadoPedido.ASIGNADO, EstadoPedido.NO_ASIGNABLE, EstadoPedido.CANCELADO),
+            EstadoPedido.ASIGNADO, Set.of(EstadoPedido.EN_CAMINO, EstadoPedido.CANCELADO),
+            EstadoPedido.NO_ASIGNABLE, Set.of(EstadoPedido.RECIBIDO, EstadoPedido.CANCELADO),
+            EstadoPedido.EN_CAMINO, Set.of(EstadoPedido.ENTREGADO, EstadoPedido.FALLIDO),
             EstadoPedido.FALLIDO, Set.of(EstadoPedido.RECIBIDO, EstadoPedido.DEVUELTO),
             EstadoPedido.ENTREGADO, Set.of(EstadoPedido.DEVUELTO),
             EstadoPedido.DEVUELTO, Set.of(),
@@ -162,8 +162,11 @@ public class Pedido {
         this.cambios.add(new CambioEstado(this, anterior, nuevo, motivo, usuario));
     }
 
+    /** Solo antes de salir a la calle. */
     public boolean puedeCancelarse() {
-        return estado == EstadoPedido.RECIBIDO || estado == EstadoPedido.ASIGNADO;
+        return estado == EstadoPedido.RECIBIDO
+                || estado == EstadoPedido.ASIGNADO
+                || estado == EstadoPedido.NO_ASIGNABLE;
     }
 
     public void cancelar(String motivo, String usuario) {
@@ -171,6 +174,14 @@ public class Pedido {
             throw new IllegalArgumentException("El pedido no puede cancelarse en estado " + estado);
         }
         cambiarEstado(EstadoPedido.CANCELADO, motivo, usuario);
+    }
+
+    /** El despachante devuelve a la cola de planificacion un pedido NO_ASIGNABLE. */
+    public void reprogramar(String motivo, String usuario) {
+        if (estado != EstadoPedido.NO_ASIGNABLE) {
+            throw new IllegalArgumentException("Solo se reprograma un pedido NO_ASIGNABLE, estado actual: " + estado);
+        }
+        cambiarEstado(EstadoPedido.RECIBIDO, motivo, usuario);
     }
 
     /**
