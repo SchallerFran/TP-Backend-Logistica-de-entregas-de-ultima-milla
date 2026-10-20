@@ -63,13 +63,36 @@
       "realmRoles": ["DESPACHANTE"]
     },
     {
+      "id": "b1e7c7a0-0000-4000-8000-000000000001",
       "username": "repartidor1",
       "enabled": true,
       "emailVerified": true,
-      "firstName": "Rita",
-      "lastName": "Repartidora",
+      "firstName": "Juan",
+      "lastName": "Perez",
       "email": "repartidor1@logistica.local",
       "credentials": [{ "type": "password", "value": "repartidor1", "temporary": false }],
+      "realmRoles": ["REPARTIDOR"]
+    },
+    {
+      "id": "b1e7c7a0-0000-4000-8000-000000000002",
+      "username": "repartidor2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Maria",
+      "lastName": "Gomez",
+      "email": "repartidor2@logistica.local",
+      "credentials": [{ "type": "password", "value": "repartidor2", "temporary": false }],
+      "realmRoles": ["REPARTIDOR"]
+    },
+    {
+      "id": "b1e7c7a0-0000-4000-8000-000000000003",
+      "username": "repartidor3",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Lucas",
+      "lastName": "Sosa",
+      "email": "repartidor3@logistica.local",
+      "credentials": [{ "type": "password", "value": "repartidor3", "temporary": false }],
       "realmRoles": ["REPARTIDOR"]
     },
     {

@@ -1,6 +1,6 @@
--- Se ejecuta UNA sola vez, en la primera inicializacion del volumen de Postgres.
--- Las contrasenas de abajo son valores de DESARROLLO y deben coincidir con las
--- del archivo .env (un script .sql no puede leer variables de entorno).
+-- Se ejecuta UNA sola vez, como superusuario: psql -U postgres -f infra/init-db.sql
+-- Las contrasenas de abajo son valores de DESARROLLO y coinciden con los valores
+-- por defecto de los application.yml (un script .sql no lee variables de entorno).
 -- Para un entorno real: cambiar ambos lados.
 
 -- ---------- pedidos ----------
