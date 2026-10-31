@@ -8,6 +8,7 @@ Backend de microservicios para coordinar entregas de última milla: recepción d
 | Ibañez, Ignacio | 85593 |
 | Rueda, Walter | 407718 |
 | Díaz, Lautaro Tobías | 94528 |
+| Ludueña, Tomas | 400245 |
 
 **Comisión:** 3K4 · **Docentes:** Federico Bett, Ivo Parun Rua, Franco Pesci
 
