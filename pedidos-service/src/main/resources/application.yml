@@ -19,6 +19,20 @@ spring:
       hibernate:
         format_sql: true
 
+  # Mails de cambio de estado al cliente (Gmail SMTP). Sin GMAIL_APP_PASSWORD no se envían.
+  # La contraseña es una "contraseña de aplicación" de Google (16 caracteres): nunca va en el repo.
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${GMAIL_USER:ultimamilla.tpbackend@gmail.com}
+    password: ${GMAIL_APP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
   security:
     oauth2:
       resourceserver:
@@ -49,6 +63,10 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    # Gmail no es parte de la salud del servicio: sin mail, los pedidos funcionan igual
+    mail:
+      enabled: false
 
 keycloak:
   # client_credentials para llamar a /internal de despacho-service (rol SERVICE).

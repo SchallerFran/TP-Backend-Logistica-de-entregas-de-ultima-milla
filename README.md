@@ -140,6 +140,8 @@ Los valores por defecto de los `application.yml` apuntan a `localhost` y a las c
 | Variable | Uso |
 |---|---|
 | `GOOGLE_MAPS_API_KEY` | API key de Google con Routes API habilitada. **Nunca va en un archivo del repo.** Sin ella, las distancias se estiman. |
+| `GMAIL_APP_PASSWORD` | Contraseña de aplicación de Google (16 caracteres) de la cuenta que manda los mails. **Nunca va en un archivo del repo.** Sin ella no se envían mails. |
+| `GMAIL_USER` | Cuenta de Gmail remitente (por defecto `ultimamilla.tpbackend@gmail.com`) |
 | `SERVICE_CLIENT_SECRET` | Secret del client `logistica-service` |
 | `PEDIDOS_DB_*`, `DESPACHO_DB_*` | Host, puerto, nombre, usuario y contraseña de cada base |
 | `KEYCLOAK_ISSUER_URI`, `KEYCLOAK_JWK_SET_URI`, `KEYCLOAK_TOKEN_URI` | URLs de Keycloak |
@@ -171,7 +173,7 @@ Flujo completo:
 
 Documentación OpenAPI: http://localhost:8081/swagger-ui.html y http://localhost:8082/swagger-ui.html.
 
-Tests automáticos: `mvn test` en `logistica-commons`, `pedidos-service` y `despacho-service` (63 tests).
+Tests automáticos: `mvn test` en `logistica-commons`, `pedidos-service` y `despacho-service` (65 tests).
 
 ## Estado del proyecto
 
@@ -190,5 +192,5 @@ Tests automáticos: `mvn test` en `logistica-commons`, `pedidos-service` y `desp
 
 Además:
 
-- **Probado:** compilación y 63 tests unitarios y de seguridad en verde.
+- **Probado:** compilación y 65 tests unitarios y de seguridad en verde.
 - **Falta:** una prueba de punta a punta con Postgres, Keycloak y los tres servicios levantados.

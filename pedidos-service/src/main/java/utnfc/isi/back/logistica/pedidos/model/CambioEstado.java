@@ -2,6 +2,7 @@ package utnfc.isi.back.logistica.pedidos.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "cambio_estado")
+@EntityListeners(CambioEstadoListener.class)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CambioEstado {

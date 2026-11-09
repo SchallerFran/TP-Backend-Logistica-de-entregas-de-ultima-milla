@@ -9,6 +9,7 @@ Microservicio de **gestión del pedido** (puerto 8081, base `pedidos_db`). Es el
 - Ciclo de vida con transiciones controladas, control de intentos (máximo 2) e historial de cambios.
 - Cancelación (solo antes de salir a la calle) y reprogramación de pedidos NO_ASIGNABLE.
 - API interna para que despacho-service lea la cola de pendientes e informe asignaciones y entregas.
+- Mail al cliente (Gmail SMTP) en cada cambio de estado, incluida el alta. Sin `GMAIL_APP_PASSWORD` no se envía nada.
 
 ## Estructura
 
@@ -33,6 +34,7 @@ src/main/java/utnfc/isi/back/logistica/pedidos/
 | `PrioridadPedido` | NORMAL, URGENTE. |
 | `Destinatario` | Embeddable con contacto, dirección y coordenadas; expone su `Coordenada` de commons. |
 | `CambioEstado` | Registro inmutable del historial: estado anterior y nuevo, motivo, autor y fecha. |
+| `CambioEstadoListener` | Listener JPA de `CambioEstado`: cada fila insertada (alta y cada transición) publica un evento `CambioRegistrado`. Es el único punto por el que pasan todos los cambios. |
 | `Cliente` | Comercio vinculado a un `keycloakUserId`; si está desactivado no puede crear pedidos. |
 
 ### service
@@ -40,6 +42,7 @@ src/main/java/utnfc/isi/back/logistica/pedidos/
 | Clase | Qué hace |
 |---|---|
 | `PedidoService` | Casos de uso del pedido: crear (valida el centro contra despacho), listar con filtros, obtener, historial, cancelar (si está ASIGNADO, primero pide a despacho que lo quite de la ruta) y reprogramar. También atiende los casos de uso internos: pendientes, confirmar asignación en lote, salida y resultado de entrega, todos idempotentes. |
+| `NotificadorMail` | Escucha `CambioRegistrado` después del commit (`@TransactionalEventListener`) y en otro hilo (`@Async`), y manda el mail al email del cliente. Si Gmail falla solo lo registra en el log: el pedido no se ve afectado. |
 | `ClienteService` | Alta (un perfil por usuario y CUIT único), consulta, actualización, listado y desactivación. |
 | `*Exception` | `RecursoNoEncontrado` 404, `AccesoDenegado` 403, `Conflicto` 409, `CentroInexistente` 422 y `ServicioNoDisponible` 503. |
 
@@ -61,7 +64,7 @@ src/main/java/utnfc/isi/back/logistica/pedidos/
 
 ## Tests
 
-`mvn test`, con 43 tests:
+`mvn test`, con 45 tests:
 
 | Clase | Qué prueba |
 |---|---|
@@ -69,6 +72,7 @@ src/main/java/utnfc/isi/back/logistica/pedidos/
 | `PedidoServiceTest` | Casos de uso con Mockito: centro inexistente o inactivo, despacho caído, acceso ajeno, confirmación en lote, cancelación coordinada, reprogramación e idempotencia |
 | `ClienteServiceTest` | Alta, perfil duplicado, CUIT duplicado, perfil inexistente y desactivación |
 | `PedidoControllerSecurityTest` | Acceso por rol, incluido `/internal` |
+| `NotificadorMailTest` | De punta a punta con H2 en memoria y Gmail simulado: un mail por el alta y otro por cada cambio, y ninguno si la transacción se revierte |
 
 ## Estado
 
