@@ -7,7 +7,7 @@ Microservicio de **operación logística** (puerto 8082, base `despacho_db`). Es
 - ABM de datos maestros: centros, vehículos y repartidores (las bajas son lógicas).
 - **Planificación**: arma las rutas del día para un centro respetando todas las restricciones, y confirma con pedidos-service.
 - **Ejecución**: el repartidor ve su ruta, la inicia y registra cada parada; pedidos-service se entera por un outbox con reintentos.
-- **Distancias** reales con Google Routes API (matriz de rutas), con caché y estimación de respaldo.
+- **Distancias** reales por calle con OSRM, con caché y estimación de respaldo.
 - Supervisión del despachante: rutas por fecha y estado, y notificaciones pendientes o con error.
 
 ## Estructura
@@ -23,7 +23,7 @@ src/main/java/utnfc/isi/back/logistica/despacho/
 │   └── internal/       API para pedidos-service
 ├── dto/              requests/responses y mapper
 │   └── internal/       contrato con pedidos-service
-├── client/           Google Maps y pedidos-service
+├── client/           OSRM y pedidos-service
 ├── exception/        excepciones y handler (ProblemDetail con "codigo")
 ├── security/Roles    nombres de los roles
 └── config/           seguridad, RestClients, propiedades, reloj y OpenAPI
@@ -40,7 +40,7 @@ src/main/resources/data.sql   datos semilla: 2 centros, 4 vehículos, 3 repartid
 | `Ruta` | Un día, un vehículo y un repartidor, con paradas ordenadas, km, duración, costo y la marca `estimada`. Estados: BORRADOR → CONFIRMADA → EN_CURSO → FINALIZADA |
 | `Parada` | Copia de los datos del pedido al planificar, con ETA, estado (PENDIENTE / ENTREGADA / FALLIDA) y motivo de fallo |
 | `NotificacionPedido` | **Outbox**: un aviso pendiente para pedidos-service (EN_CAMINO o RESULTADO_ENTREGA), con estado PENDIENTE / ENVIADA / ERROR |
-| `DistanciaCache` | Distancias ya consultadas a Google, con fecha de consulta |
+| `DistanciaCache` | Distancias ya consultadas a OSRM, con fecha de consulta |
 
 ### service
 
@@ -50,7 +50,7 @@ src/main/resources/data.sql   datos semilla: 2 centros, 4 vehículos, 3 repartid
 | `planificacion/PlanificadorRutas` | Heurística de **inserción más barata**: primero los URGENTE y después los de ventana más ajustada; prueba cada posición de cada ruta abierta o abre una ruta nueva; elige la de menor costo (km adicionales × costo por km). Si un pedido no entra en ninguna, informa el motivo (`MotivoNoAsignable`). |
 | `planificacion/CalculadoraRuta` | Simula una ruta y verifica todas las restricciones a la vez: capacidad, frío, ventanas, turno y autonomía. |
 | `planificacion/*` (records) | Datos del algoritmo: `MatrizDistancias`, `ParametrosPlan`, `VehiculoPlan`, `RepartidorPlan`, `RutaPlan`, `ParadaPlan`, `EvaluacionRuta`, `NoAsignado`, `ResultadoPlanificacion`, `FuenteDistancia`. |
-| `DistanciaService` | Resuelve cada par de puntos en este orden: caché vigente, Google (en bloques de 10×10), caché vencida y estimación Haversine × factor de rodeo. |
+| `DistanciaService` | Resuelve cada par de puntos en este orden: caché vigente, OSRM (en bloques de 50×50), caché vencida y estimación Haversine × factor de rodeo. |
 | `EjecucionRutaService` | La ruta del repartidor, iniciar y registrar el resultado. Guarda la notificación en la misma transacción (outbox); también ofrece las búsquedas del despachante. |
 | `NotificacionPedidoService` | Envía el outbox a pedidos-service apenas se confirma la transacción y cada 15 s. Si pedidos no responde, corta la vuelta y reintenta después; si pedidos rechaza un aviso, lo marca ERROR para revisión. |
 | `CancelacionService` | Lo invoca pedidos antes de cancelar: quita la parada y recalcula la ruta, o responde 409 si el pedido ya está en la calle. |
@@ -71,7 +71,7 @@ src/main/resources/data.sql   datos semilla: 2 centros, 4 vehículos, 3 repartid
 
 ### Resto
 
-- `client/GoogleDistanceMatrixClient`: llama a Routes API (`computeRouteMatrix`) y traduce sus fallos a `GoogleNoDisponibleException`.
+- `client/OsrmClient`: llama al servicio `table` de OSRM (una matriz por consulta, sin API key) y traduce sus fallos a `RuteoNoDisponibleException`.
 - `client/PedidosClient`: llama a la API interna de pedidos. Distingue el fallo **transitorio** (`PedidosNoDisponibleException`: red, timeout o 5xx, se reintenta) del **rechazo** (`PedidosRechazoException`: 4xx, no se reintenta).
 - `config/DespachoProperties`: parámetros de `application.yml` bajo `despacho.*`: tiempo de servicio por parada, timeouts, TTL de la caché, factor de rodeo, velocidad promedio e intervalo del outbox.
 - `config/ClockConfig`: reloj en la zona `America/Argentina/Cordoba`, inyectable para tests.
@@ -79,7 +79,7 @@ src/main/resources/data.sql   datos semilla: 2 centros, 4 vehículos, 3 repartid
 
 ## Tests
 
-`mvn test`, con 14 tests. `GoogleDistanceMatrixClientTest` (3) verifica, contra un servidor simulado, que la respuesta de Routes API se traduzca bien a la matriz y que sus errores caigan en el respaldo. `PlanificadorRutasTest` (11) cubre:
+`mvn test`, con 41 tests. `DespachoSecurityTest` (22) recorre la matriz de permisos por rol, incluido `/internal/**`. `DistanciaServiceTest` (5) verifica el orden de respaldo: OSRM, caché vigente, caché vencida y estimación. `OsrmClientTest` (3) verifica, contra un servidor simulado, que la respuesta de OSRM se traduzca bien a la matriz y que sus errores caigan en el respaldo. `PlanificadorRutasTest` (11) cubre:
 
 - agrupar pedidos cercanos con el vehículo más barato;
 - urgentes primero y abrir otra ruta cuando la primera se llena;
@@ -91,4 +91,4 @@ src/main/resources/data.sql   datos semilla: 2 centros, 4 vehículos, 3 repartid
 
 ## Estado
 
-Completo para el alcance del TPI. Sin `GOOGLE_MAPS_API_KEY` funciona con caché y estimación.
+Completo para el alcance del TPI. Si OSRM no responde, funciona con caché y estimación.

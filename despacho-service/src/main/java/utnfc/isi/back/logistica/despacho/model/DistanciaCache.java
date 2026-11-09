@@ -8,7 +8,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Distancias ya consultadas a Google Maps. Reduce costo/cuota y sirve de respaldo si la API no
+ * Distancias ya consultadas a OSRM. Reduce costo/cuota y sirve de respaldo si la API no
  * responde. Las coordenadas se guardan redondeadas a 4 decimales (Coordenada.redondeada()).
  */
 @Entity
@@ -36,11 +36,11 @@ public class DistanciaCache {
     @Column(name = "destino_lng", nullable = false)
     private double destinoLng;
 
-    /** distance.value de Google. */
+    /** Distancia por calle en metros (OSRM). */
     @Column(nullable = false)
     private int metros;
 
-    /** duration.value de Google. */
+    /** Tiempo de viaje en segundos (OSRM). */
     @Column(nullable = false)
     private int segundos;
 

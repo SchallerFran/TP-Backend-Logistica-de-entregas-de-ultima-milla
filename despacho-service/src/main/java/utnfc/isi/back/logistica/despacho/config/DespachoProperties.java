@@ -23,13 +23,13 @@ public record DespachoProperties(
     public record Notificaciones(long intervaloMs, int maxIntentos) {
     }
 
-    public record Distancias(Google google, int cacheTtlDias, double factorRodeo, double velocidadPromedioKmh) {
+    public record Distancias(Osrm osrm, int cacheTtlDias, double factorRodeo, double velocidadPromedioKmh) {
     }
 
-    public record Google(String baseUrl, String apiKey, Duration connectTimeout, Duration readTimeout) {
+    public record Osrm(String baseUrl, Duration connectTimeout, Duration readTimeout) {
 
-        public boolean habilitada() {
-            return apiKey != null && !apiKey.isBlank();
+        public boolean habilitado() {
+            return baseUrl != null && !baseUrl.isBlank();
         }
     }
 }

@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
         info = @Info(title = "despacho-service",
                 version = "1.0.0",
                 description = "Operación logística: centros, flota y repartidores; planificación, "
-                        + "confirmación y ejecución de rutas; integración con Google Distance Matrix."),
+                        + "confirmación y ejecución de rutas; integración con OSRM para distancias por calle."),
         security = @SecurityRequirement(name = "bearerAuth"))
 @SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 public class OpenApiConfig {

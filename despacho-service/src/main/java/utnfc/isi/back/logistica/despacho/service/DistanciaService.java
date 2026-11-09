@@ -1,9 +1,9 @@
 package utnfc.isi.back.logistica.despacho.service;
 
 import utnfc.isi.back.logistica.commons.Coordenada;
-import utnfc.isi.back.logistica.despacho.client.GoogleDistanceMatrixClient;
-import utnfc.isi.back.logistica.despacho.client.GoogleDistanceMatrixClient.Elemento;
-import utnfc.isi.back.logistica.despacho.client.GoogleNoDisponibleException;
+import utnfc.isi.back.logistica.despacho.client.OsrmClient;
+import utnfc.isi.back.logistica.despacho.client.OsrmClient.Elemento;
+import utnfc.isi.back.logistica.despacho.client.RuteoNoDisponibleException;
 import utnfc.isi.back.logistica.despacho.config.DespachoProperties;
 import utnfc.isi.back.logistica.despacho.model.DistanciaCache;
 import utnfc.isi.back.logistica.despacho.repository.DistanciaCacheRepository;
@@ -22,14 +22,14 @@ import java.util.*;
  * <p>
  * Estrategia, en orden, para cada par origen → destino:
  * <ol>
- *   <li><b>Caché vigente</b> (distancia_cache, más nueva que el TTL): no se consulta Google.</li>
- *   <li><b>Google Distance Matrix</b>, en bloques de 10 × 10, sólo para los pares que faltan.
+ *   <li><b>Caché vigente</b> (distancia_cache, más nueva que el TTL): no se consulta OSRM.</li>
+ *   <li><b>OSRM</b> (servicio table), en bloques de 50 × 50, sólo para los pares que faltan.
  *       Lo obtenido se guarda en la caché.</li>
- *   <li><b>Caché vencida</b>: si Google no responde/rechaza, se reutiliza el dato viejo (es real).</li>
+ *   <li><b>Caché vencida</b>: si OSRM no responde/rechaza, se reutiliza el dato viejo (es real).</li>
  *   <li><b>Estimación</b>: Haversine × factor de rodeo y velocidad promedio. El par queda marcado
  *       ESTIMADA y la ruta que lo use, {@code estimada = true}, para que el despachante la revise.</li>
  * </ol>
- * Si Google falla en un bloque, no se lo vuelve a llamar en el resto de la operación ("corta el
+ * Si OSRM falla en un bloque, no se lo vuelve a llamar en el resto de la operación ("corta el
  * circuito" localmente): insistir contra una API caída o sin cuota sólo agrega latencia.
  */
 @Slf4j
@@ -37,14 +37,14 @@ import java.util.*;
 public class DistanciaService {
 
     private final DistanciaCacheRepository cacheRepository;
-    private final GoogleDistanceMatrixClient google;
+    private final OsrmClient osrm;
     private final DespachoProperties.Distancias config;
     private final Clock clock;
 
-    public DistanciaService(DistanciaCacheRepository cacheRepository, GoogleDistanceMatrixClient google,
+    public DistanciaService(DistanciaCacheRepository cacheRepository, OsrmClient osrm,
                             DespachoProperties props, Clock clock) {
         this.cacheRepository = cacheRepository;
-        this.google = google;
+        this.osrm = osrm;
         this.config = props.distancias();
         this.clock = clock;
     }
@@ -86,9 +86,9 @@ public class DistanciaService {
             }
         }
 
-        // 2) Google para lo que falta ---------------------------------------------------------------
-        if (hayFaltantes(fuente) && google.habilitado()) {
-            consultarGoogle(puntos, metros, segundos, fuente, cache, ahora);
+        // 2) OSRM para lo que falta -----------------------------------------------------------------
+        if (hayFaltantes(fuente) && osrm.habilitado()) {
+            consultarOsrm(puntos, metros, segundos, fuente, cache, ahora);
         }
 
         // 3) y 4) fallback --------------------------------------------------------------------------
@@ -113,18 +113,18 @@ public class DistanciaService {
             }
         }
         if (estimadas > 0) {
-            log.warn("{} distancias estimadas con Haversine (Google no disponible y sin caché)", estimadas);
+            log.warn("{} distancias estimadas con Haversine (OSRM no disponible y sin caché)", estimadas);
         }
         return new MatrizDistancias(puntos, metros, segundos, fuente);
     }
 
     // -----------------------------------------------------------------------------------------------
 
-    private void consultarGoogle(List<Coordenada> puntos, int[][] metros, int[][] segundos,
+    private void consultarOsrm(List<Coordenada> puntos, int[][] metros, int[][] segundos,
                                  FuenteDistancia[][] fuente, Map<String, DistanciaCache> cache,
                                  LocalDateTime ahora) {
         int n = puntos.size();
-        int bloque = GoogleDistanceMatrixClient.MAX_POR_LADO;
+        int bloque = OsrmClient.MAX_POR_LADO;
         List<DistanciaCache> aGuardar = new ArrayList<>();
 
         externo:
@@ -137,9 +137,9 @@ public class DistanciaService {
                 }
                 Elemento[][] res;
                 try {
-                    res = google.consultar(puntos.subList(oi, oFin), puntos.subList(dj, dFin));
-                } catch (GoogleNoDisponibleException e) {
-                    log.warn("Google Distance Matrix no disponible, se usa fallback: {}", e.getMessage());
+                    res = osrm.consultar(puntos.subList(oi, oFin), puntos.subList(dj, dFin));
+                } catch (RuteoNoDisponibleException e) {
+                    log.warn("OSRM no disponible, se usa fallback: {}", e.getMessage());
                     break externo; // no insistir en esta operación
                 }
                 for (int i = oi; i < oFin; i++) {
@@ -149,12 +149,12 @@ public class DistanciaService {
                         }
                         Elemento e = res[i - oi][j - dj];
                         if (!e.ok()) {
-                            log.info("Google sin ruta {} → {} (status {})", puntos.get(i), puntos.get(j), e.status());
+                            log.info("OSRM sin ruta {} → {} (status {})", puntos.get(i), puntos.get(j), e.status());
                             continue; // queda para fallback
                         }
                         metros[i][j] = e.metros();
                         segundos[i][j] = e.segundos();
-                        fuente[i][j] = FuenteDistancia.GOOGLE;
+                        fuente[i][j] = FuenteDistancia.OSRM;
                         aGuardar.add(actualizarCache(cache, puntos.get(i), puntos.get(j), e, ahora));
                     }
                 }

@@ -21,7 +21,7 @@ public class DistanciaController {
     private final DistanciaService service;
 
     @Operation(summary = "Distancia y tiempo entre dos coordenadas",
-            description = "Indica la fuente del dato: CACHE, GOOGLE, CACHE_VENCIDA o ESTIMADA (fallback Haversine)")
+            description = "Indica la fuente del dato: CACHE, OSRM, CACHE_VENCIDA o ESTIMADA (fallback Haversine)")
     @GetMapping
     public DistanciaResponse consultar(
             @Parameter(example = "-31.4135,-64.1810") @RequestParam String origen,

@@ -45,7 +45,7 @@ public class Ruta {
     @Column(name = "costo_total", nullable = false)
     private double costoTotal;
 
-    /** true si alguna distancia salió del fallback (caché vencida / Haversine) y no de Google. */
+    /** true si alguna distancia salió del fallback (caché vencida / Haversine) y no de OSRM. */
     @Column(nullable = false)
     private boolean estimada;
 

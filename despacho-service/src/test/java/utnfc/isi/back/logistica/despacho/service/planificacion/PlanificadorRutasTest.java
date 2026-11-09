@@ -61,7 +61,7 @@ class PlanificadorRutasTest {
                 double km = puntos.get(i).distanciaHaversineKm(puntos.get(j));
                 m[i][j] = (int) Math.round(km * 1000);
                 s[i][j] = (int) Math.round(km * 120);
-                f[i][j] = i == j ? FuenteDistancia.MISMO_PUNTO : FuenteDistancia.GOOGLE;
+                f[i][j] = i == j ? FuenteDistancia.MISMO_PUNTO : FuenteDistancia.OSRM;
             }
         }
         return new MatrizDistancias(puntos, m, s, f);

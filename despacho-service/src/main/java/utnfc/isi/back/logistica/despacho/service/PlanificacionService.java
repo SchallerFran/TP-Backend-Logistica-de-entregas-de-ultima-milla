@@ -42,7 +42,7 @@ import java.util.*;
  * borran al volver a planificar) y el despachante puede reintentar sólo la confirmación.
  * <p>
  * Las llamadas HTTP se hacen FUERA de las transacciones de base (TransactionTemplate en tramos cortos):
- * no se mantiene una conexión a la base abierta mientras se espera a otro servicio o a Google.
+ * no se mantiene una conexión a la base abierta mientras se espera a otro servicio o a OSRM.
  */
 @Slf4j
 @Service
@@ -121,7 +121,7 @@ public class PlanificacionService {
                     List.of(), Map.of(), List.of("No hay pedidos pendientes para el centro y la fecha"));
         }
 
-        // 3) distancias reales (Google / caché / estimación)
+        // 3) distancias reales (OSRM / caché / estimación)
         List<Coordenada> puntos = new ArrayList<>();
         puntos.add(ctx.params().centro());
         pendientes.forEach(p -> puntos.add(Coordenada.of(p.latitud(), p.longitud())));
@@ -149,10 +149,10 @@ public class PlanificacionService {
         List<String> advertencias = new ArrayList<>();
         Map<FuenteDistancia, Integer> fuentes = matriz.resumenFuentes();
         if (fuentes.getOrDefault(FuenteDistancia.ESTIMADA, 0) > 0) {
-            advertencias.add("Algunas distancias son estimadas (Google no disponible): revisar rutas marcadas como estimadas");
+            advertencias.add("Algunas distancias son estimadas (OSRM no disponible): revisar rutas marcadas como estimadas");
         }
         if (fuentes.getOrDefault(FuenteDistancia.CACHE_VENCIDA, 0) > 0) {
-            advertencias.add("Se usaron distancias de caché vencida porque Google no respondió");
+            advertencias.add("Se usaron distancias de caché vencida porque OSRM no respondió");
         }
 
         Confirmacion conf = confirmar(centroId, fecha, rutaIds, noAsignables, matriz);

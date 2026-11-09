@@ -90,13 +90,14 @@ despacho:
     max-intentos: 50
 
   distancias:
-    google:
-      base-url: https://routes.googleapis.com
-      # Si está vacía no se consulta Google: se usa caché y, si no hay, estimación Haversine
-      api-key: ${GOOGLE_MAPS_API_KEY:}
+    osrm:
+      # Servidor OSRM. Por defecto el público (sin API key, ~1 consulta por segundo, sin garantía de
+      # disponibilidad). Con uno propio con el mapa de Argentina: http://localhost:5000
+      # Si queda vacía no se consulta OSRM: se usa caché y, si no hay, estimación Haversine.
+      base-url: ${OSRM_URL:https://router.project-osrm.org}
       connect-timeout: 2s
       read-timeout: 5s
-    # Una distancia cacheada más vieja que esto se vuelve a consultar (si Google no responde se usa igual)
+    # Una distancia cacheada más vieja que esto se vuelve a consultar (si OSRM no responde se usa igual)
     cache-ttl-dias: 30
     # Fallback: km por calle ≈ km en línea recta × factor de rodeo
     factor-rodeo: 1.3

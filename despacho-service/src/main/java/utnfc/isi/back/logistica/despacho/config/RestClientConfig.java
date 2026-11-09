@@ -72,14 +72,14 @@ public class RestClientConfig {
                 .build();
     }
 
-    /** Cliente hacia Google Routes API. La API key va en el header X-Goog-Api-Key (la agrega GoogleDistanceMatrixClient). */
+    /** Cliente hacia OSRM (servicio de ruteo). No lleva credenciales. */
     @Bean
-    @Qualifier("googleRestClient")
-    RestClient googleRestClient(DespachoProperties props) {
-        var google = props.distancias().google();
+    @Qualifier("osrmRestClient")
+    RestClient osrmRestClient(DespachoProperties props) {
+        var osrm = props.distancias().osrm();
         return RestClient.builder()
-                .baseUrl(google.baseUrl())
-                .requestFactory(requestFactory(google.connectTimeout(), google.readTimeout()))
+                .baseUrl(osrm.baseUrl())
+                .requestFactory(requestFactory(osrm.connectTimeout(), osrm.readTimeout()))
                 .build();
     }
 
