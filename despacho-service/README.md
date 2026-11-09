@@ -7,7 +7,7 @@ Microservicio de **operación logística** (puerto 8082, base `despacho_db`). Es
 - ABM de datos maestros: centros, vehículos y repartidores (las bajas son lógicas).
 - **Planificación**: arma las rutas del día para un centro respetando todas las restricciones, y confirma con pedidos-service.
 - **Ejecución**: el repartidor ve su ruta, la inicia y registra cada parada; pedidos-service se entera por un outbox con reintentos.
-- **Distancias** reales con Google Maps Distance Matrix, con caché y estimación de respaldo.
+- **Distancias** reales con Google Routes API (matriz de rutas), con caché y estimación de respaldo.
 - Supervisión del despachante: rutas por fecha y estado, y notificaciones pendientes o con error.
 
 ## Estructura
@@ -71,7 +71,7 @@ src/main/resources/data.sql   datos semilla: 2 centros, 4 vehículos, 3 repartid
 
 ### Resto
 
-- `client/GoogleDistanceMatrixClient`: llama a Distance Matrix y traduce sus fallos a `GoogleNoDisponibleException`.
+- `client/GoogleDistanceMatrixClient`: llama a Routes API (`computeRouteMatrix`) y traduce sus fallos a `GoogleNoDisponibleException`.
 - `client/PedidosClient`: llama a la API interna de pedidos. Distingue el fallo **transitorio** (`PedidosNoDisponibleException`: red, timeout o 5xx, se reintenta) del **rechazo** (`PedidosRechazoException`: 4xx, no se reintenta).
 - `config/DespachoProperties`: parámetros de `application.yml` bajo `despacho.*`: tiempo de servicio por parada, timeouts, TTL de la caché, factor de rodeo, velocidad promedio e intervalo del outbox.
 - `config/ClockConfig`: reloj en la zona `America/Argentina/Cordoba`, inyectable para tests.
@@ -79,7 +79,7 @@ src/main/resources/data.sql   datos semilla: 2 centros, 4 vehículos, 3 repartid
 
 ## Tests
 
-`mvn test`, con 11 tests en `PlanificadorRutasTest`:
+`mvn test`, con 14 tests. `GoogleDistanceMatrixClientTest` (3) verifica, contra un servidor simulado, que la respuesta de Routes API se traduzca bien a la matriz y que sus errores caigan en el respaldo. `PlanificadorRutasTest` (11) cubre:
 
 - agrupar pedidos cercanos con el vehículo más barato;
 - urgentes primero y abrir otra ruta cuando la primera se llena;

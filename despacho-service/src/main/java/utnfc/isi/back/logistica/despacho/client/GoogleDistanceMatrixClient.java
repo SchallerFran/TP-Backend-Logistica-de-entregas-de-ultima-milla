@@ -5,18 +5,19 @@ import utnfc.isi.back.logistica.despacho.config.DespachoProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 /**
- * Integración con Google Maps Distance Matrix API.
+ * Integración con Google Maps Routes API (método computeRouteMatrix, sucesor de Distance Matrix).
  * <p>
- * Una consulta devuelve una matriz origenes × destinos. Google limita a 25 orígenes, 25 destinos y
- * 100 elementos por request; quien llama (DistanciaService) arma bloques de 10 × 10.
+ * Una consulta devuelve una matriz origenes × destinos. Sin tráfico (TRAFFIC_UNAWARE) Google admite hasta
+ * 625 elementos por request; quien llama (DistanciaService) arma bloques de 10 × 10.
  * <p>
  * Este cliente sólo traduce HTTP/JSON ↔ Java. Las decisiones (caché, reintentos, fallback) se toman
  * en DistanciaService.
@@ -26,6 +27,9 @@ import java.util.stream.Collectors;
 public class GoogleDistanceMatrixClient {
 
     public static final int MAX_POR_LADO = 10;
+
+    /** Routes API exige indicar qué campos devolver; sin este header responde 400. */
+    static final String FIELD_MASK = "originIndex,destinationIndex,status,condition,distanceMeters,duration";
 
     private final RestClient googleRestClient;
     private final DespachoProperties.Google config;
@@ -40,7 +44,7 @@ public class GoogleDistanceMatrixClient {
         return config.habilitada();
     }
 
-    /** Resultado de un par origen/destino. ok=false si Google no encontró ruta (NOT_FOUND, ZERO_RESULTS). */
+    /** Resultado de un par origen/destino. ok=false si Google no encontró ruta por calle. */
     public record Elemento(boolean ok, int metros, int segundos, String status) {
     }
 
@@ -56,62 +60,73 @@ public class GoogleDistanceMatrixClient {
             throw new IllegalArgumentException("Máximo " + MAX_POR_LADO + " orígenes/destinos por consulta");
         }
 
+        Map<String, Object> request = Map.of(
+                "origins", waypoints(origenes),
+                "destinations", waypoints(destinos),
+                "travelMode", "DRIVE",
+                "routingPreference", "TRAFFIC_UNAWARE");
+
         JsonNode root;
         try {
-            root = googleRestClient.get()
-                    .uri(uri -> uri.path("/distancematrix/json")
-                            .queryParam("origins", unir(origenes))
-                            .queryParam("destinations", unir(destinos))
-                            .queryParam("mode", "driving")
-                            .queryParam("units", "metric")
-                            .queryParam("key", config.apiKey())
-                            .build())
+            root = googleRestClient.post()
+                    .uri("/distanceMatrix/v2:computeRouteMatrix")
+                    .header("X-Goog-Api-Key", config.apiKey())
+                    .header("X-Goog-FieldMask", FIELD_MASK)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientException e) {
-            // timeouts, conexión rechazada, 4xx/5xx HTTP
+            // timeouts, conexión rechazada, 4xx/5xx HTTP (key inválida, API no habilitada, cuota agotada...)
             throw new GoogleNoDisponibleException("Error HTTP consultando Google: " + e.getMessage(), e);
         }
 
-        if (root == null) {
-            throw new GoogleNoDisponibleException("Respuesta vacía de Google");
-        }
-        String status = root.path("status").asText("");
-        if (!"OK".equals(status)) {
-            // OVER_QUERY_LIMIT, OVER_DAILY_LIMIT, REQUEST_DENIED, INVALID_REQUEST, MAX_ELEMENTS_EXCEEDED, UNKNOWN_ERROR...
-            String detalle = root.path("error_message").asText("");
-            throw new GoogleNoDisponibleException("Google respondió status=" + status + " " + detalle);
+        if (root == null || !root.isArray()) {
+            throw new GoogleNoDisponibleException("Respuesta inesperada de Google: se esperaba una lista");
         }
 
-        JsonNode rows = root.path("rows");
-        if (!rows.isArray() || rows.size() != origenes.size()) {
-            throw new GoogleNoDisponibleException("Respuesta inesperada de Google: cantidad de filas");
-        }
-
+        // La respuesta es una lista plana de elementos, sin orden garantizado.
         Elemento[][] resultado = new Elemento[origenes.size()][destinos.size()];
-        for (int i = 0; i < origenes.size(); i++) {
-            JsonNode elements = rows.get(i).path("elements");
-            if (!elements.isArray() || elements.size() != destinos.size()) {
-                throw new GoogleNoDisponibleException("Respuesta inesperada de Google: cantidad de columnas");
+        for (JsonNode e : root) {
+            // En el JSON de Google los campos con valor 0 se omiten: índice ausente = 0
+            int i = e.path("originIndex").asInt(0);
+            int j = e.path("destinationIndex").asInt(0);
+            if (i >= origenes.size() || j >= destinos.size()) {
+                throw new GoogleNoDisponibleException("Respuesta inesperada de Google: índice fuera de rango");
             }
+            int codigoError = e.path("status").path("code").asInt(0);
+            String condicion = e.path("condition").asText("");
+            if (codigoError == 0 && "ROUTE_EXISTS".equals(condicion)) {
+                resultado[i][j] = new Elemento(true,
+                        e.path("distanceMeters").asInt(0),
+                        segundos(e.path("duration").asText("0s")),
+                        condicion);
+            } else {
+                // ROUTE_NOT_FOUND (no hay camino por calle) o error puntual de ese par
+                String detalle = codigoError != 0 ? e.path("status").path("message").asText("ERROR") : condicion;
+                resultado[i][j] = new Elemento(false, 0, 0, detalle);
+            }
+        }
+
+        for (int i = 0; i < origenes.size(); i++) {
             for (int j = 0; j < destinos.size(); j++) {
-                JsonNode e = elements.get(j);
-                String st = e.path("status").asText("");
-                if ("OK".equals(st) && e.path("distance").has("value") && e.path("duration").has("value")) {
-                    resultado[i][j] = new Elemento(true,
-                            e.path("distance").path("value").asInt(),
-                            e.path("duration").path("value").asInt(),
-                            st);
-                } else {
-                    // NOT_FOUND (coordenada no geocodificable) o ZERO_RESULTS (no hay ruta por calle)
-                    resultado[i][j] = new Elemento(false, 0, 0, st);
+                if (resultado[i][j] == null) {
+                    throw new GoogleNoDisponibleException("Respuesta incompleta de Google: falta el par " + i + "→" + j);
                 }
             }
         }
         return resultado;
     }
 
-    private static String unir(List<Coordenada> puntos) {
-        return puntos.stream().map(Coordenada::comoLatLng).collect(Collectors.joining("|"));
+    private static List<Map<String, Object>> waypoints(List<Coordenada> puntos) {
+        return puntos.stream()
+                .map(p -> Map.<String, Object>of("waypoint", Map.of("location", Map.of("latLng",
+                        Map.of("latitude", p.latitud(), "longitude", p.longitud())))))
+                .toList();
+    }
+
+    /** Routes API expresa la duración como "123s" (puede traer decimales). */
+    static int segundos(String duracion) {
+        return (int) Math.round(Double.parseDouble(duracion.replace("s", "")));
     }
 }

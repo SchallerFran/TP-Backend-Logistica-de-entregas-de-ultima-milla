@@ -50,7 +50,7 @@ flowchart LR
     DS <-->|/internal, token SERVICE| PS
     PS --> DB1[(pedidos_db)]
     DS --> DB2[(despacho_db)]
-    DS -->|HTTPS| GM[Google Maps Distance Matrix]
+    DS -->|HTTPS| GM[Google Routes API]
 ```
 
 | Componente | Para qué está |
@@ -61,7 +61,7 @@ flowchart LR
 | `logistica-commons` | Lo que es igual en los dos servicios: formato de error, manejo de excepciones, conversión de roles de Keycloak y `Coordenada`. |
 | Keycloak | Identity Provider: autentica usuarios (OIDC), emite JWT y administra roles. |
 | PostgreSQL | Una instancia con una base por microservicio; ninguno lee la base del otro. |
-| Google Maps Distance Matrix | Distancias y tiempos reales por calle, necesarios para planificar. |
+| Google Routes API (matriz de rutas) | Distancias y tiempos reales por calle, necesarios para planificar. |
 
 ### Por qué dos microservicios y no uno
 
@@ -97,7 +97,7 @@ Cada cambio queda registrado con fecha, motivo y autor (`GET /api/pedidos/{id}/c
 
 ### Integración con Google Maps
 
-Las distancias y los tiempos reales deciden autonomía, duración de la jornada, ventanas horarias y costo, y dependen de la red vial: no se pueden reemplazar por un dato de configuración. Por eso se obtienen de Distance Matrix, con este orden de respaldo:
+Las distancias y los tiempos reales deciden autonomía, duración de la jornada, ventanas horarias y costo, y dependen de la red vial: no se pueden reemplazar por un dato de configuración. Por eso se obtienen de Routes API (`computeRouteMatrix`, sucesor de Distance Matrix), con este orden de respaldo:
 
 1. Caché vigente.
 2. Google.
@@ -138,7 +138,7 @@ Los valores por defecto de los `application.yml` apuntan a `localhost` y a las c
 
 | Variable | Uso |
 |---|---|
-| `GOOGLE_MAPS_API_KEY` | API key de Distance Matrix. **Nunca va en un archivo del repo.** Sin ella, las distancias se estiman. |
+| `GOOGLE_MAPS_API_KEY` | API key de Google con Routes API habilitada. **Nunca va en un archivo del repo.** Sin ella, las distancias se estiman. |
 | `SERVICE_CLIENT_SECRET` | Secret del client `logistica-service` |
 | `PEDIDOS_DB_*`, `DESPACHO_DB_*` | Host, puerto, nombre, usuario y contraseña de cada base |
 | `KEYCLOAK_ISSUER_URI`, `KEYCLOAK_JWK_SET_URI`, `KEYCLOAK_TOKEN_URI` | URLs de Keycloak |
@@ -170,7 +170,7 @@ Flujo completo:
 
 Documentación OpenAPI: http://localhost:8081/swagger-ui.html y http://localhost:8082/swagger-ui.html.
 
-Tests automáticos: `mvn test` en `logistica-commons`, `pedidos-service` y `despacho-service` (60 tests).
+Tests automáticos: `mvn test` en `logistica-commons`, `pedidos-service` y `despacho-service` (63 tests).
 
 ## Estado del proyecto
 
@@ -179,7 +179,7 @@ Tests automáticos: `mvn test` en `logistica-commons`, `pedidos-service` y `desp
 | ≥ 2 microservicios con responsabilidades del dominio | ✅ pedidos-service y despacho-service |
 | Colaboración real entre servicios y manejo de caídas | ✅ Alta, planificación (saga), ejecución (outbox) y cancelación |
 | API Gateway con Security Filter | ✅ Enrutamiento, validación de JWT y bloqueo de `/internal/**` |
-| API pública externa necesaria para el negocio | ✅ Google Distance Matrix, con caché y estimación de respaldo |
+| API pública externa necesaria para el negocio | ✅ Google Routes API, con caché y estimación de respaldo |
 | Keycloak, OIDC, JWT, Spring Security y roles | ✅ 4 roles humanos y 1 técnico; client credentials entre servicios |
 | Componente común en JAR Maven | ✅ `logistica-commons` 1.2.0, instalado en `.m2` |
 | Persistencia en DBMS relacional | ✅ PostgreSQL, una base por servicio |
@@ -189,5 +189,5 @@ Tests automáticos: `mvn test` en `logistica-commons`, `pedidos-service` y `desp
 
 Además:
 
-- **Probado:** compilación y 60 tests unitarios y de seguridad en verde.
+- **Probado:** compilación y 63 tests unitarios y de seguridad en verde.
 - **Falta:** una prueba de punta a punta con Postgres, Keycloak y los tres servicios levantados.
