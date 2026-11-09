@@ -21,9 +21,13 @@ Una empresa de logística recibe pedidos de comercios y los reparte desde uno o 
 ```
 .
 ├── README.md                 este archivo: visión general, puesta en marcha y estado
+├── documentacion/            enunciado, rúbrica, dominio, compromiso, guías de la cátedra y
+│                             guía de instalación, ejecución y pruebas (Guia-instalacion-y-pruebas.pdf)
 ├── infra/
 │   ├── init-db.sql           crea las bases pedidos_db y despacho_db con sus usuarios
+│   ├── reset-datos.sql       vuelve los datos al estado inicial para repetir la demo
 │   └── realm-logistica.json  realm de Keycloak: roles, clients y usuarios de prueba
+├── postman/                  colección ejecutable, entorno Local y guía de pruebas
 ├── logistica-commons/        JAR Maven compartido por los dos microservicios
 ├── pedidos-service/          microservicio de pedidos (puerto 8081)
 ├── despacho-service/         microservicio de operación logística (puerto 8082)
@@ -170,7 +174,7 @@ Las distancias y los tiempos reales deciden autonomía, duración de la jornada,
 
 Cuando se usa una estimación, la ruta queda marcada `estimada` para que el despachante la revise.
 
-Por defecto se usa el servidor público de OSRM (`router.project-osrm.org`), que no pide API key ni registro pero limita a una consulta por segundo y no garantiza disponibilidad. Para no depender de él se puede levantar un OSRM propio con el mapa de Argentina (guía de la cátedra, `api-OsrmRoutes.md`) y apuntar `OSRM_URL` a `http://localhost:5000`.
+Por defecto se usa el servidor público de OSRM (`router.project-osrm.org`), que no pide API key ni registro pero limita a una consulta por segundo y no garantiza disponibilidad. Para no depender de él se puede levantar un OSRM propio con el mapa de Argentina (guía de la cátedra, `documentacion/OSRM_routing_arg.pdf`) y apuntar `OSRM_URL` a `http://localhost:5000`.
 
 ### Seguridad
 
@@ -310,7 +314,7 @@ Requieren detener un servicio a mitad de camino, así que no están en la colecc
 
 | Qué cambió | Motivo | Impacto |
 |---|---|---|
-| Google Maps Distance Matrix → **OSRM** | Google exige activar facturación con tarjeta incluso para la cuota gratuita. OSRM es la alternativa propuesta por la cátedra (`api-OsrmRoutes.md`): datos de OpenStreetMap y sin API key. | F12, RN18, V8 y P9: la fuente `GOOGLE` pasa a llamarse `OSRM`. Caché, estimación de respaldo y planificación no cambian. |
+| Google Maps Distance Matrix → **OSRM** | Google exige activar facturación con tarjeta incluso para la cuota gratuita. OSRM es la alternativa propuesta por la cátedra (`documentacion/OSRM_routing_arg.pdf`): datos de OpenStreetMap y sin API key. | F12, RN18, V8 y P9: la fuente `GOOGLE` pasa a llamarse `OSRM`. Caché, estimación de respaldo y planificación no cambian. |
 | **Mails** al cliente en cada cambio de estado | Agregado. Va al email del comercio (el cliente), no al destinatario, que sigue fuera del alcance. | pedidos-service: `CambioEstadoListener` y `NotificadorMail`. Si Gmail falla, el pedido no se ve afectado. |
 | Credenciales en los `application.yml` | Condición de la cátedra. El compromiso decía variables de entorno y un `.env` sin versionar. | Cada valor se sigue pudiendo sobrescribir con su variable de entorno. |
 | P2: "el urgente queda primero" | RN07 define el orden de **atención**: el urgente toma la capacidad antes que los demás, pero su posición en la ruta la deciden el costo y su ventana. | La colección verifica la asignación del urgente, no el orden de las paradas. |
