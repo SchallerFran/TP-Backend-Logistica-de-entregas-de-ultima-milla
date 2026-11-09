@@ -91,7 +91,7 @@ despacho:
 
   distancias:
     google:
-      base-url: https://maps.googleapis.com/maps/api
+      base-url: https://routes.googleapis.com
       # Si está vacía no se consulta Google: se usa caché y, si no hay, estimación Haversine
       api-key: ${GOOGLE_MAPS_API_KEY:}
       connect-timeout: 2s
