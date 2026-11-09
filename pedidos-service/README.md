@@ -9,7 +9,7 @@ Microservicio de **gestión del pedido** (puerto 8081, base `pedidos_db`). Es el
 - Ciclo de vida con transiciones controladas, control de intentos (máximo 2) e historial de cambios.
 - Cancelación (solo antes de salir a la calle) y reprogramación de pedidos NO_ASIGNABLE.
 - API interna para que despacho-service lea la cola de pendientes e informe asignaciones y entregas.
-- Mail al cliente (Gmail SMTP) en cada cambio de estado, incluida el alta. Sin `GMAIL_APP_PASSWORD` no se envía nada.
+- Mail al cliente (Gmail SMTP) en cada cambio de estado, incluida el alta. La cuenta y la contraseña están en el `application.yml`; si la contraseña queda vacía no se envía nada.
 
 ## Estructura
 

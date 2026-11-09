@@ -19,13 +19,15 @@ spring:
       hibernate:
         format_sql: true
 
-  # Mails de cambio de estado al cliente (Gmail SMTP). Sin GMAIL_APP_PASSWORD no se envían.
-  # La contraseña es una "contraseña de aplicación" de Google (16 caracteres): nunca va en el repo.
+  # Mails de cambio de estado al cliente (Gmail SMTP), con la cuenta de prueba del TP
+  # (condición de la cátedra: credenciales en el application.yml). Gmail solo acepta por SMTP
+  # una "contraseña de aplicación" (16 caracteres); con la contraseña normal rechaza el login.
+  # Si la contraseña queda vacía no se envían mails.
   mail:
     host: smtp.gmail.com
     port: 587
     username: ${GMAIL_USER:ultimamilla.tpbackend@gmail.com}
-    password: ${GMAIL_APP_PASSWORD:}
+    password: ${GMAIL_APP_PASSWORD:UltimaMilla123}
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
