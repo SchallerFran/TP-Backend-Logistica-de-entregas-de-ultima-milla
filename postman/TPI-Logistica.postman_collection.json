@@ -1,0 +1,1150 @@
+{
+  "info": {
+    "name": "TPI Logística",
+    "description": "Todo va contra el gateway. Cada carpeta se loguea sola en Keycloak con su usuario (contraseña = usuario) y cachea el token. Los IDs creados se guardan en variables de la colección.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const d = new Date();",
+          "const p = n => String(n).padStart(2, '0');",
+          "pm.variables.set('hoy', d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "gateway",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "keycloak",
+      "value": "http://localhost:8180"
+    },
+    {
+      "key": "centroId",
+      "value": "1"
+    },
+    {
+      "key": "pedidoId",
+      "value": ""
+    },
+    {
+      "key": "rutaId",
+      "value": ""
+    },
+    {
+      "key": "paradaId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Cliente (cliente1)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const usuario = 'cliente1';",
+              "const k = 'token_' + usuario;",
+              "const exp = Number(pm.collectionVariables.get(k + '_exp') || 0);",
+              "if (Date.now() < exp) {",
+              "    pm.variables.set('token', pm.collectionVariables.get(k));",
+              "} else {",
+              "    pm.sendRequest({",
+              "        url: pm.collectionVariables.get('keycloak') + '/realms/logistica/protocol/openid-connect/token',",
+              "        method: 'POST',",
+              "        header: { 'Content-Type': 'application/x-www-form-urlencoded' },",
+              "        body: { mode: 'urlencoded', urlencoded: [",
+              "            { key: 'grant_type', value: 'password' },",
+              "            { key: 'client_id', value: 'logistica-public' },",
+              "            { key: 'username', value: usuario },",
+              "            { key: 'password', value: usuario }",
+              "        ]}",
+              "    }, (err, res) => {",
+              "        if (err || res.code !== 200) { console.error('Login fallido para ' + usuario, err || res.text()); return; }",
+              "        const t = res.json();",
+              "        pm.collectionVariables.set(k, t.access_token);",
+              "        pm.collectionVariables.set(k + '_exp', String(Date.now() + (t.expires_in - 10) * 1000));",
+              "        pm.variables.set('token', t.access_token);",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Registrar mi perfil",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/clientes/me",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razonSocial\": \"Comercio Uno SRL\",\n  \"cuit\": \"30-71234567-9\",\n  \"email\": \"cliente1@mail.com\",\n  \"telefono\": \"3510000000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Ver mi perfil",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/clientes/me",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Actualizar mi perfil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/clientes/me",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"cliente1@nuevo.com\",\n  \"telefono\": \"3519999999\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear pedido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/pedidos",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "pedidos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": 1,\n  \"destinatario\": {\n    \"nombre\": \"Ana Destinataria\",\n    \"telefono\": \"3511234567\",\n    \"direccion\": \"Bv. San Juan 500, Córdoba\",\n    \"latitud\": -31.4201,\n    \"longitud\": -64.1888,\n    \"referencias\": \"Timbre 3B\"\n  },\n  \"pesoKg\": 12.5,\n  \"volumenM3\": 0.2,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{hoy}}T09:00:00\",\n  \"ventanaHasta\": \"{{hoy}}T18:00:00\",\n  \"requiereFrio\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code < 300) { const j = pm.response.json(); pm.collectionVariables.set('pedidoId', j.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis pedidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/pedidos?",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "pedidos"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "RECIBIDO",
+                  "disabled": true
+                },
+                {
+                  "key": "centroId",
+                  "value": "{{centroId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ver pedido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/pedidos/{{pedidoId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Historial del pedido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/pedidos/{{pedidoId}}/cambios",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "cambios"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancelar pedido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/pedidos/{{pedidoId}}/cancelacion",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "cancelacion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Ya no lo necesito\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Despachante (despachante1)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const usuario = 'despachante1';",
+              "const k = 'token_' + usuario;",
+              "const exp = Number(pm.collectionVariables.get(k + '_exp') || 0);",
+              "if (Date.now() < exp) {",
+              "    pm.variables.set('token', pm.collectionVariables.get(k));",
+              "} else {",
+              "    pm.sendRequest({",
+              "        url: pm.collectionVariables.get('keycloak') + '/realms/logistica/protocol/openid-connect/token',",
+              "        method: 'POST',",
+              "        header: { 'Content-Type': 'application/x-www-form-urlencoded' },",
+              "        body: { mode: 'urlencoded', urlencoded: [",
+              "            { key: 'grant_type', value: 'password' },",
+              "            { key: 'client_id', value: 'logistica-public' },",
+              "            { key: 'username', value: usuario },",
+              "            { key: 'password', value: usuario }",
+              "        ]}",
+              "    }, (err, res) => {",
+              "        if (err || res.code !== 200) { console.error('Login fallido para ' + usuario, err || res.text()); return; }",
+              "        const t = res.json();",
+              "        pm.collectionVariables.set(k, t.access_token);",
+              "        pm.collectionVariables.set(k + '_exp', String(Date.now() + (t.expires_in - 10) * 1000));",
+              "        pm.variables.set('token', t.access_token);",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Planificar día",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/planificaciones",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "planificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"fecha\": \"{{hoy}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code < 300) {",
+                  "    const r = pm.response.json();",
+                  "    if (r.rutas && r.rutas.length) pm.collectionVariables.set('rutaId', r.rutas[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reintentar confirmación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/planificaciones/confirmacion",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "planificaciones",
+                "confirmacion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"fecha\": \"{{hoy}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar rutas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/rutas?fecha={{hoy}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "rutas"
+              ],
+              "query": [
+                {
+                  "key": "fecha",
+                  "value": "{{hoy}}",
+                  "disabled": false
+                },
+                {
+                  "key": "centroId",
+                  "value": "{{centroId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "estado",
+                  "value": "BORRADOR",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ver ruta",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/rutas/{{rutaId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "rutas",
+                "{{rutaId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Eliminar ruta",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/rutas/{{rutaId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "rutas",
+                "{{rutaId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar pedidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/pedidos?",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "pedidos"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "RECIBIDO",
+                  "disabled": true
+                },
+                {
+                  "key": "centroId",
+                  "value": "{{centroId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Historial del pedido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/pedidos/{{pedidoId}}/cambios",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "cambios"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reprogramar pedido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/pedidos/{{pedidoId}}/reprogramacion",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "reprogramacion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Cliente pidió otro día\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/clientes",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "clientes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Distancia entre dos puntos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/distancias?origen=-31.4135,-64.1810&destino=-31.4400,-64.2200",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "distancias"
+              ],
+              "query": [
+                {
+                  "key": "origen",
+                  "value": "-31.4135,-64.1810",
+                  "disabled": false
+                },
+                {
+                  "key": "destino",
+                  "value": "-31.4400,-64.2200",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Notificaciones con error",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/notificaciones?estado=ERROR",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "notificaciones"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "ERROR",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Centros",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/centros",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "centros"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Vehículos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/vehiculos?",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "vehiculos"
+              ],
+              "query": [
+                {
+                  "key": "centroId",
+                  "value": "{{centroId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Repartidores",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/repartidores?",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "repartidores"
+              ],
+              "query": [
+                {
+                  "key": "centroId",
+                  "value": "{{centroId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Repartidor (repartidor1)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const usuario = 'repartidor1';",
+              "const k = 'token_' + usuario;",
+              "const exp = Number(pm.collectionVariables.get(k + '_exp') || 0);",
+              "if (Date.now() < exp) {",
+              "    pm.variables.set('token', pm.collectionVariables.get(k));",
+              "} else {",
+              "    pm.sendRequest({",
+              "        url: pm.collectionVariables.get('keycloak') + '/realms/logistica/protocol/openid-connect/token',",
+              "        method: 'POST',",
+              "        header: { 'Content-Type': 'application/x-www-form-urlencoded' },",
+              "        body: { mode: 'urlencoded', urlencoded: [",
+              "            { key: 'grant_type', value: 'password' },",
+              "            { key: 'client_id', value: 'logistica-public' },",
+              "            { key: 'username', value: usuario },",
+              "            { key: 'password', value: usuario }",
+              "        ]}",
+              "    }, (err, res) => {",
+              "        if (err || res.code !== 200) { console.error('Login fallido para ' + usuario, err || res.text()); return; }",
+              "        const t = res.json();",
+              "        pm.collectionVariables.set(k, t.access_token);",
+              "        pm.collectionVariables.set(k + '_exp', String(Date.now() + (t.expires_in - 10) * 1000));",
+              "        pm.variables.set('token', t.access_token);",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Mi ruta de hoy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/mi-ruta",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "mi-ruta"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code < 300) {",
+                  "    const r = pm.response.json();",
+                  "    pm.collectionVariables.set('rutaId', r.id);",
+                  "    const p = (r.paradas || []).find(x => x.estado === 'PENDIENTE');",
+                  "    if (p) pm.collectionVariables.set('paradaId', p.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Iniciar ruta",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/mi-ruta/{{rutaId}}/inicio",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "mi-ruta",
+                "{{rutaId}}",
+                "inicio"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code < 300) {",
+                  "    const r = pm.response.json();",
+                  "    pm.collectionVariables.set('rutaId', r.id);",
+                  "    const p = (r.paradas || []).find(x => x.estado === 'PENDIENTE');",
+                  "    if (p) pm.collectionVariables.set('paradaId', p.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parada entregada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaId}}/resultado",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "mi-ruta",
+                "{{rutaId}}",
+                "paradas",
+                "{{paradaId}}",
+                "resultado"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resultado\": \"ENTREGADA\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Parada fallida",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaId}}/resultado",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "mi-ruta",
+                "{{rutaId}}",
+                "paradas",
+                "{{paradaId}}",
+                "resultado"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resultado\": \"FALLIDA\",\n  \"motivo\": \"Destinatario ausente\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Admin (admin1)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const usuario = 'admin1';",
+              "const k = 'token_' + usuario;",
+              "const exp = Number(pm.collectionVariables.get(k + '_exp') || 0);",
+              "if (Date.now() < exp) {",
+              "    pm.variables.set('token', pm.collectionVariables.get(k));",
+              "} else {",
+              "    pm.sendRequest({",
+              "        url: pm.collectionVariables.get('keycloak') + '/realms/logistica/protocol/openid-connect/token',",
+              "        method: 'POST',",
+              "        header: { 'Content-Type': 'application/x-www-form-urlencoded' },",
+              "        body: { mode: 'urlencoded', urlencoded: [",
+              "            { key: 'grant_type', value: 'password' },",
+              "            { key: 'client_id', value: 'logistica-public' },",
+              "            { key: 'username', value: usuario },",
+              "            { key: 'password', value: usuario }",
+              "        ]}",
+              "    }, (err, res) => {",
+              "        if (err || res.code !== 200) { console.error('Login fallido para ' + usuario, err || res.text()); return; }",
+              "        const t = res.json();",
+              "        pm.collectionVariables.set(k, t.access_token);",
+              "        pm.collectionVariables.set(k + '_exp', String(Date.now() + (t.expires_in - 10) * 1000));",
+              "        pm.variables.set('token', t.access_token);",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Crear centro",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/centros",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "centros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Centro Prueba\",\n  \"direccion\": \"Av. Vélez Sarsfield 1000, Córdoba\",\n  \"latitud\": -31.43,\n  \"longitud\": -64.19,\n  \"radioCoberturaKm\": 15,\n  \"activo\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code < 300) { const j = pm.response.json(); pm.collectionVariables.set('centroNuevoId', j.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar centros",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/centros?",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "centros"
+              ],
+              "query": [
+                {
+                  "key": "soloActivos",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ver centro",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/centros/{{centroId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "centros",
+                "{{centroId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear vehículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/vehiculos",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "vehiculos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patente\": \"AF345KL\",\n  \"pesoMaxKg\": 900,\n  \"volMaxM3\": 7,\n  \"autonomiaKm\": 250,\n  \"costoPorKm\": 500,\n  \"tieneFrio\": false,\n  \"disponible\": true,\n  \"centroId\": {{centroId}}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code < 300) { const j = pm.response.json(); pm.collectionVariables.set('vehiculoId', j.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actualizar vehículo",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/vehiculos/{{vehiculoId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "vehiculos",
+                "{{vehiculoId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patente\": \"AF345KL\",\n  \"pesoMaxKg\": 950,\n  \"volMaxM3\": 7,\n  \"autonomiaKm\": 260,\n  \"costoPorKm\": 520,\n  \"tieneFrio\": false,\n  \"disponible\": true,\n  \"centroId\": {{centroId}}\n}"
+            }
+          }
+        },
+        {
+          "name": "Eliminar vehículo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/vehiculos/{{vehiculoId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "vehiculos",
+                "{{vehiculoId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear repartidor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/repartidores",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "repartidores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Repartidor Prueba\",\n  \"keycloakUserId\": \"id-de-keycloak-del-usuario\",\n  \"turnoInicio\": \"08:00\",\n  \"turnoFin\": \"17:00\",\n  \"activo\": true,\n  \"centroId\": {{centroId}}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code < 300) { const j = pm.response.json(); pm.collectionVariables.set('repartidorId', j.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar repartidor",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/despacho/repartidores/{{repartidorId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "despacho",
+                "repartidores",
+                "{{repartidorId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Desactivar cliente",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/api/clientes/1/desactivacion",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "desactivacion"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

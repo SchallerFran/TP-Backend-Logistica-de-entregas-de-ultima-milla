@@ -72,7 +72,7 @@ public class RestClientConfig {
                 .build();
     }
 
-    /** Cliente hacia Google Maps. La API key va como query param (la agrega GoogleDistanceMatrixClient). */
+    /** Cliente hacia Google Routes API. La API key va en el header X-Goog-Api-Key (la agrega GoogleDistanceMatrixClient). */
     @Bean
     @Qualifier("googleRestClient")
     RestClient googleRestClient(DespachoProperties props) {
