@@ -1,0 +1,11 @@
+# El contexto de build es la raíz del repo (los servicios necesitan logistica-commons).
+# Acá se deja afuera todo lo que una imagen no usa, para que el build sea rápido y repetible.
+.git
+.idea
+.vscode
+**/target
+documentacion
+postman
+infra
+.env
+*.md

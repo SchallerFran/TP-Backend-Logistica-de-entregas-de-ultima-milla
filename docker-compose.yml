@@ -1,0 +1,167 @@
+# Despliegue completo del TPI: PostgreSQL, Keycloak, los dos microservicios y el API Gateway.
+#
+#   docker compose up --build -d                          desarrollo: suma docker-compose.override.yml
+#   docker compose -f docker-compose.yml up --build -d    solo gateway (8080) y Keycloak (8180) publicados
+#
+# No hace falta configurar nada: los valores por defecto alcanzan. Para cambiar alguno, copiar
+# .env.example a .env (ver ese archivo).
+#
+# Dentro de la red los servicios se llaman por su nombre (postgres, keycloak, pedidos-service...),
+# no por localhost. Los application.yml no se tocan: cada URL ya se podía pisar con una variable.
+
+services:
+
+  # ---------------------------------------------------------------- base de datos
+  postgres:
+    image: postgres:17-alpine
+    container_name: logistica-postgres
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      # datos persistentes: sobreviven a "docker compose down" (se borran con "down -v")
+      - logistica-postgres-data:/var/lib/postgresql/data
+      # se ejecuta una sola vez, cuando el volumen está vacío: crea las 3 bases y sus usuarios
+      - ./infra/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+      # para volver al estado inicial: docker compose exec postgres psql -U postgres -f /infra/reset-datos.sql
+      - ./infra/reset-datos.sql:/infra/reset-datos.sql:ro
+    healthcheck:
+      # por TCP a propósito: mientras corre init-db.sql el servidor solo escucha por socket,
+      # así que recién pasa cuando las bases ya están creadas
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - logistica-net
+
+  # ---------------------------------------------------------------- identity provider
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    container_name: logistica-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_HTTP_PORT: 8180
+      # URL pública fija: todos los tokens salen con iss = http://localhost:8180/realms/logistica,
+      # los pida Postman desde el host o un microservicio desde adentro de la red.
+      KC_HOSTNAME: http://localhost:8180
+      # permite que los servicios le hablen por http://keycloak:8180 (red interna)
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: keycloak_pass
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    volumes:
+      # realm "logistica": roles, clients y usuarios de prueba (se importa si todavía no existe)
+      - ./infra/realm-logistica.json:/opt/keycloak/data/import/realm-logistica.json:ro
+    ports:
+      - "8180:8180"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - logistica-net
+
+  # ---------------------------------------------------------------- microservicios
+  pedidos-service:
+    build:
+      context: .
+      dockerfile: pedidos-service/Dockerfile
+    container_name: pedidos-service
+    env_file:
+      # opcional: solo para pisar GMAIL_USER, GMAIL_APP_PASSWORD o MAIL_COPIA
+      - path: .env
+        required: false
+    environment:
+      TZ: America/Argentina/Cordoba
+      PEDIDOS_DB_HOST: postgres
+      DESPACHO_SERVICE_URL: http://despacho-service:8082
+      # el issuer es el que viene dentro del token (URL pública); las claves y los tokens
+      # de servicio se piden por la red interna
+      KEYCLOAK_ISSUER_URI: http://localhost:8180/realms/logistica
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8180/realms/logistica/protocol/openid-connect/certs
+      KEYCLOAK_TOKEN_URI: http://keycloak:8180/realms/logistica/protocol/openid-connect/token
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health/readiness | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - logistica-net
+
+  despacho-service:
+    build:
+      context: .
+      dockerfile: despacho-service/Dockerfile
+    container_name: despacho-service
+    env_file:
+      # opcional: solo para pisar OSRM_URL
+      - path: .env
+        required: false
+    environment:
+      TZ: America/Argentina/Cordoba
+      DESPACHO_DB_HOST: postgres
+      PEDIDOS_SERVICE_URL: http://pedidos-service:8081
+      KEYCLOAK_ISSUER_URI: http://localhost:8180/realms/logistica
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8180/realms/logistica/protocol/openid-connect/certs
+      KEYCLOAK_TOKEN_URI: http://keycloak:8180/realms/logistica/protocol/openid-connect/token
+    expose:
+      - "8082"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health/readiness | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - logistica-net
+
+  # ---------------------------------------------------------------- punto de entrada único
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    environment:
+      TZ: America/Argentina/Cordoba
+      PEDIDOS_SERVICE_URL: http://pedidos-service:8081
+      DESPACHO_SERVICE_URL: http://despacho-service:8082
+      KEYCLOAK_ISSUER_URI: http://localhost:8180/realms/logistica
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8180/realms/logistica/protocol/openid-connect/certs
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      pedidos-service:
+        condition: service_healthy
+      despacho-service:
+        condition: service_healthy
+    networks:
+      - logistica-net
+
+# Red interna del backend: desde afuera solo se llega a lo que publica "ports".
+networks:
+  logistica-net:
+    driver: bridge
+
+volumes:
+  logistica-postgres-data:

@@ -1,0 +1,16 @@
+# Solo para desarrollo. "docker compose up" lo suma solo al docker-compose.yml y publica
+# también los microservicios (Swagger UI) y la base, para entrar con un cliente SQL.
+# Para levantar sin esto:  docker compose -f docker-compose.yml up --build -d
+
+services:
+  pedidos-service:
+    ports:
+      - "8081:8081"   # http://localhost:8081/swagger-ui.html
+
+  despacho-service:
+    ports:
+      - "8082:8082"   # http://localhost:8082/swagger-ui.html
+
+  postgres:
+    ports:
+      - "5433:5432"   # 5433 en el host para no chocar con un PostgreSQL instalado en la máquina
