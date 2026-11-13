@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TPI Logística",
-    "description": "Colección ejecutable del TPI. Se corre completa y en orden (Collection Runner o `postman collection run postman/TPI-Logistica.postman_collection.json -e postman/Local.postman_environment.json`). Cada request verifica su resultado con pm.test. Requiere la base limpia del día (infra/reset-datos.sql): un vehículo y un repartidor hacen una sola ruta por día (RN11).",
+    "description": "Colección ejecutable del TPI en 5 apartados que siguen el proceso de punta a punta. Se corre completa y en orden (Collection Runner o `postman collection run postman/TPI-Logistica.postman_collection.json -e postman/Local.postman_environment.json`). Cada request verifica su resultado con pm.test. Requiere la base limpia del día (infra/reset-datos.sql): un vehículo y un repartidor hacen una sola ruta por día (RN11).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -19,8 +19,8 @@
   ],
   "item": [
     {
-      "name": "0. Auth",
-      "description": "Pide y guarda el token de cada usuario de prueba (la contraseña es igual al usuario).",
+      "name": "1. Autenticación y datos maestros",
+      "description": "Login de cada usuario de prueba contra Keycloak (la contraseña es igual al usuario): guarda un token por rol. Después, como ADMIN, consulta la semilla y da de alta y de baja un vehículo (F05). El vehículo se crea en el centro 2 para no alterar la planificación del centro 1.",
       "item": [
         {
           "name": "Token cliente1",
@@ -271,13 +271,7 @@
               }
             }
           ]
-        }
-      ]
-    },
-    {
-      "name": "1. Datos maestros (ADMIN)",
-      "description": "Consulta la semilla y hace el ABM completo de un vehículo (F05). El vehículo se crea en el centro 2 para no alterar la planificación del centro 1.",
-      "item": [
+        },
         {
           "name": "Listar centros",
           "request": {
@@ -313,26 +307,6 @@
                 "exec": [
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
                   "pm.test('El centro tiene un vehículo refrigerado', () => pm.expect(pm.response.json().some(v => v.tieneFrio)).to.be.true);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Listar repartidores del centro",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{gatewayUrl}}/api/despacho/repartidores?centroId={{centroId}}"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('El centro tiene 2 repartidores', () => pm.expect(pm.response.json().length).to.be.at.least(2));"
                 ]
               }
             }
@@ -377,35 +351,6 @@
           ]
         },
         {
-          "name": "Actualizar vehículo",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/despacho/vehiculos/{{vehiculoId}}",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"patente\": \"{{patente}}\",\n  \"pesoMaxKg\": 950,\n  \"volMaxM3\": 7,\n  \"autonomiaKm\": 260,\n  \"costoPorKm\": 520,\n  \"tieneFrio\": false,\n  \"disponible\": true,\n  \"centroId\": 2\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('Se actualizó el peso máximo', () => pm.expect(pm.response.json().pesoMaxKg).to.eql(950));"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "Baja del vehículo",
           "request": {
             "method": "DELETE",
@@ -437,8 +382,8 @@
       }
     },
     {
-      "name": "2. Cliente",
-      "description": "Perfil del comercio y alta de los pedidos que usa el resto de la colección (F01, F02, RN01-RN03).",
+      "name": "2. Cliente: perfil y pedidos",
+      "description": "El comercio registra su perfil y carga los pedidos que usa el resto de la colección (F01, F02, RN01-RN03). Cada alta manda el mail \"Pedido #N: recibido\" a `emailPruebas`. Cierra con un pedido inválido, que se rechaza.",
       "item": [
         {
           "name": "P1 Registrar perfil",
@@ -453,7 +398,7 @@
             "url": "{{gatewayUrl}}/api/clientes/me",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"razonSocial\": \"Comercio Uno SRL\",\n  \"cuit\": \"30-71234567-9\",\n  \"email\": \"cliente1@mail.com\",\n  \"telefono\": \"3510000000\"\n}"
+              "raw": "{\n  \"razonSocial\": \"Comercio Uno SRL\",\n  \"cuit\": \"30-71234567-9\",\n  \"email\": \"{{emailPruebas}}\",\n  \"telefono\": \"3510000000\"\n}"
             }
           },
           "event": [
@@ -470,11 +415,20 @@
           ]
         },
         {
-          "name": "Ver mi perfil",
+          "name": "Email del perfil = emailPruebas",
           "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{gatewayUrl}}/api/clientes/me"
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/clientes/me",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailPruebas}}\",\n  \"telefono\": \"3510000000\"\n}"
+            }
           },
           "event": [
             {
@@ -483,7 +437,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('Perfil activo', () => pm.expect(pm.response.json().activo).to.be.true);"
+                  "// si el perfil ya existía (409 arriba) el email viejo seguía guardado: acá se pisa",
+                  "pm.test('Los mails van a emailPruebas', () => pm.expect(pm.response.json().email).to.eql(pm.environment.get('emailPruebas')));"
                 ]
               }
             }
@@ -546,37 +501,6 @@
                   "const p = pm.response.json();",
                   "pm.test('Estado RECIBIDO', () => pm.expect(p.estado).to.eql('RECIBIDO'));",
                   "pm.environment.set('pedidoId', p.id);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "P1 Crear pedido con frío",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/pedidos",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.43,\n    \"longitud\": -64.17\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T09:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T18:00:00\",\n  \"requiereFrio\": true\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
-                  "const p = pm.response.json();",
-                  "pm.test('Estado RECIBIDO', () => pm.expect(p.estado).to.eql('RECIBIDO'));",
-                  "pm.environment.set('pedidoFrioId', p.id);"
                 ]
               }
             }
@@ -658,7 +582,45 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('Lista paginada con los pedidos creados', () => pm.expect(pm.response.json().content.length).to.be.at.least(5));"
+                  "pm.test('Lista paginada con los pedidos creados', () => pm.expect(pm.response.json().content.length).to.be.at.least(4));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "N1 Ventana invertida",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.42,\n    \"longitud\": -64.19\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T18:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T09:00:00\",\n  \"requiereFrio\": false\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
                 ]
               }
             }
@@ -677,8 +639,8 @@
       }
     },
     {
-      "name": "3. Planificación (DESPACHANTE)",
-      "description": "Planifica el centro y la fecha, revisa no asignables, reprograma y cancela un pedido asignado (F06, F07, F08, F04).",
+      "name": "3. Planificación (despachante)",
+      "description": "El despachante planifica el centro y la fecha: arma las rutas, deja como no asignable el pedido fuera de cobertura y lo reprograma. El cliente cancela un pedido ya asignado y la ruta se recalcula (F04, F06, F07, F08).",
       "item": [
         {
           "name": "P2 Planificar el día",
@@ -713,7 +675,6 @@
                   "    pm.expect(principal).to.be.an('object');",
                   "    pm.expect(principal.paradas.map(p => p.pedidoId)).to.include(env('pedidoId'));",
                   "});",
-                  "pm.test('RN08: el pedido con frío va en un vehículo refrigerado (AD789GH)', () => pm.expect(rutaDe(env('pedidoFrioId')).patente).to.eql('AD789GH'));",
                   "pm.test('RN10: el pedido fuera de cobertura queda no asignable con su motivo', () => {",
                   "    const na = r.noAsignables.find(x => x.pedidoId === env('pedidoFueraId'));",
                   "    pm.expect(na).to.be.an('object');",
@@ -893,8 +854,8 @@
       }
     },
     {
-      "name": "4. Ejecución (REPARTIDOR)",
-      "description": "El repartidor que recibió la ruta principal la consulta, la inicia y registra cada parada (F09, F10, RN14-RN17).",
+      "name": "4. Ejecución de la ruta (repartidor)",
+      "description": "El repartidor que recibió la ruta principal la consulta, la inicia y registra una entrega y un intento fallido (F09, F10, RN14-RN17). Otro repartidor no puede iniciarla, y un pedido en camino ya no se puede cancelar.",
       "item": [
         {
           "name": "P3 Mi ruta de hoy",
@@ -919,6 +880,35 @@
                   "const parada = id => r.paradas.find(p => p.pedidoId === Number(pm.environment.get(id)));",
                   "pm.environment.set('paradaId', parada('pedidoUrgenteId').id);",
                   "pm.environment.set('paradaNormalId', parada('pedidoId').id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "N7 Iniciar una ruta ajena",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/inicio",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenRepartidorOtro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
                 ]
               }
             }
@@ -1091,8 +1081,8 @@
       }
     },
     {
-      "name": "5. Seguimiento",
-      "description": "Resultado final de los pedidos, historial, notificaciones y distancias (F03, F11, F12, RN05, RN16, RN18).",
+      "name": "5. Seguimiento, mails y seguridad",
+      "description": "Estado final de los pedidos y su historial: cada cambio del historial es un mail que le llegó al cliente (recibido, asignado, en camino, entregado). Después, distancias por calle con OSRM, avisos entre servicios y los accesos que el sistema rechaza: sin token, con un rol que no corresponde y a los endpoints internos (F03, F11, F12, RN05, RN16, RN18).",
       "item": [
         {
           "name": "P4 El pedido entregado quedó ENTREGADO",
@@ -1145,7 +1135,7 @@
           ]
         },
         {
-          "name": "P8 Historial del pedido entregado",
+          "name": "P8 Historial del pedido entregado (un mail por cambio)",
           "request": {
             "method": "GET",
             "header": [],
@@ -1161,36 +1151,6 @@
                   "const h = pm.response.json();",
                   "pm.test('RECIBIDO > ASIGNADO > EN_CAMINO > ENTREGADO', () => pm.expect(h.map(c => c.estadoNuevo)).to.eql(['RECIBIDO', 'ASIGNADO', 'EN_CAMINO', 'ENTREGADO']));",
                   "pm.test('Cada cambio tiene fecha y autor (RN05)', () => h.forEach(c => { pm.expect(c.fecha).to.be.ok; pm.expect(c.realizadoPor).to.be.ok; }));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Notificaciones con error",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{gatewayUrl}}/api/despacho/notificaciones?estado=ERROR",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenDespachante}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('No quedaron avisos con error', () => pm.expect(pm.response.json().length).to.eql(0));"
                 ]
               }
             }
@@ -1229,17 +1189,17 @@
           ]
         },
         {
-          "name": "Admin consulta rutas",
+          "name": "Notificaciones con error",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gatewayUrl}}/api/despacho/rutas?fecha={{fecha}}",
+            "url": "{{gatewayUrl}}/api/despacho/notificaciones?estado=ERROR",
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{tokenAdmin}}",
+                  "value": "{{tokenDespachante}}",
                   "type": "string"
                 }
               ]
@@ -1251,81 +1211,21 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('No quedaron avisos con error', () => pm.expect(pm.response.json().length).to.eql(0));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Despachante lista clientes",
+          "name": "N11 Sin token",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{gatewayUrl}}/api/clientes",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenDespachante}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
-                ]
-              }
-            }
-          ]
-        }
-      ],
-      "auth": {
-        "type": "bearer",
-        "bearer": [
-          {
-            "key": "token",
-            "value": "{{tokenCliente}}",
-            "type": "string"
-          }
-        ]
-      }
-    },
-    {
-      "name": "6. Negativos y seguridad",
-      "description": "Accesos rechazados y violaciones de reglas: se espera el rechazo, nunca un 500.",
-      "item": [
-        {
-          "name": "N1 Ventana invertida",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
             "url": "{{gatewayUrl}}/api/pedidos",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.42,\n    \"longitud\": -64.19\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T18:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T09:00:00\",\n  \"requiereFrio\": false\n}"
-            },
             "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenCliente}}",
-                  "type": "string"
-                }
-              ]
+              "type": "noauth"
             }
           },
           "event": [
@@ -1334,302 +1234,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "N2 Centro inexistente",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/pedidos",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"centroId\": 99,\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.42,\n    \"longitud\": -64.19\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T09:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T18:00:00\",\n  \"requiereFrio\": false\n}"
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenCliente}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Validación: peso negativo",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/pedidos",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.42,\n    \"longitud\": -64.19\n  },\n  \"pesoKg\": -5,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T09:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T18:00:00\",\n  \"requiereFrio\": false\n}"
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenCliente}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.be.oneOf([400]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "N4 Cancelar un pedido ya entregado",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}/cancelacion",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"motivo\": \"x\"\n}"
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenCliente}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "N5 Reprogramar un pedido que no está NO_ASIGNABLE",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}/reprogramacion",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"motivo\": \"x\"\n}"
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenDespachante}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "N6 Planificar una fecha pasada",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/despacho/planificaciones",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"centroId\": {{centroId}},\n  \"fecha\": \"2020-01-01\"\n}"
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenDespachante}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.be.oneOf([409]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "N7 Iniciar una ruta ajena",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/inicio",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenRepartidorOtro}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "N8 FALLIDA sin motivo",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaId}}/resultado",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"resultado\": \"FALLIDA\"\n}"
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenRepartidorRuta}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.be.oneOf([400]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "N8 Parada que ya tiene resultado",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaId}}/resultado",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"resultado\": \"ENTREGADA\"\n}"
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenRepartidorRuta}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.be.oneOf([409]));"
+                  "pm.test('HTTP 401', () => pm.expect(pm.response.code).to.be.oneOf([401]));"
                 ]
               }
             }
@@ -1674,28 +1279,6 @@
           ]
         },
         {
-          "name": "N11 Sin token",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{gatewayUrl}}/api/pedidos",
-            "auth": {
-              "type": "noauth"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 401', () => pm.expect(pm.response.code).to.be.oneOf([401]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "N12 /internal a través del gateway",
           "request": {
             "method": "GET",
@@ -1723,75 +1306,18 @@
               }
             }
           ]
-        },
-        {
-          "name": "Repartidor intenta listar pedidos",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{gatewayUrl}}/api/pedidos",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenRepartidor1}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Despachante intenta crear un centro",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{gatewayUrl}}/api/despacho/centros",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nombre\": \"No debería\",\n  \"direccion\": \"x\",\n  \"latitud\": -31.4,\n  \"longitud\": -64.1,\n  \"radioCoberturaKm\": 10\n}"
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{tokenDespachante}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
-                ]
-              }
-            }
-          ]
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tokenCliente}}",
+            "type": "string"
+          }
+        ]
+      }
     }
   ]
 }

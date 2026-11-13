@@ -21,10 +21,13 @@ Una empresa de logística recibe pedidos de comercios y los reparte desde uno o 
 ```
 .
 ├── README.md                 este archivo: visión general, puesta en marcha y estado
+├── docker-compose.yml        despliegue completo: PostgreSQL, Keycloak, los dos servicios y el gateway
+├── docker-compose.override.yml  extra de desarrollo: publica también los servicios y la base
+├── .env.example              valores que se pueden cambiar en el despliegue (opcional)
 ├── documentacion/            enunciado, rúbrica, dominio, compromiso, guías de la cátedra y
 │                             guía de instalación, ejecución y pruebas (Guia-instalacion-y-pruebas.pdf)
 ├── infra/
-│   ├── init-db.sql           crea las bases pedidos_db y despacho_db con sus usuarios
+│   ├── init-db.sql           crea las bases pedidos_db, despacho_db y keycloak_db con sus usuarios
 │   ├── reset-datos.sql       vuelve los datos al estado inicial para repetir la demo
 │   └── realm-logistica.json  realm de Keycloak: roles, clients y usuarios de prueba
 ├── postman/                  colección ejecutable, entorno Local y guía de pruebas
@@ -192,7 +195,54 @@ La seguridad está en capas:
 - **Cada microservicio:** vuelve a validar el token y aplica los roles (defensa en profundidad).
 - **Capa de servicio:** controla las reglas que dependen de datos, como que el cliente solo vea lo suyo y el repartidor solo su ruta.
 
-## Puesta en marcha (local)
+## Puesta en marcha con Docker
+
+Requisito: Docker con Docker Compose 2.24 o superior (Docker Desktop lo trae). No hace falta JDK, Maven, PostgreSQL ni Keycloak instalados: todo corre en contenedores. Desde la raíz del repositorio:
+
+```bash
+docker compose up --build -d
+```
+
+La primera vez tarda unos minutos, porque baja las imágenes y compila los tres servicios. Queda listo cuando `docker compose ps` muestra `api-gateway` como `healthy`.
+
+| Contenedor | Imagen | Para qué | Puerto en el host |
+|---|---|---|---|
+| `logistica-postgres` | `postgres:17-alpine` | Una instancia con tres bases (`pedidos_db`, `despacho_db`, `keycloak_db`), creadas por `infra/init-db.sql` | 5433, solo en desarrollo |
+| `logistica-keycloak` | `quay.io/keycloak/keycloak:26.4` | Identity Provider; importa `infra/realm-logistica.json` | 8180 |
+| `pedidos-service` | `pedidos-service/Dockerfile` | Microservicio de pedidos | 8081, solo en desarrollo |
+| `despacho-service` | `despacho-service/Dockerfile` | Microservicio de operación logística | 8082, solo en desarrollo |
+| `api-gateway` | `api-gateway/Dockerfile` | Punto de entrada único | 8080 |
+
+Cómo está armado:
+
+- **Imágenes:** cada servicio tiene su Dockerfile en dos etapas. La primera compila con Maven (pedidos y despacho instalan antes `logistica-commons`); la segunda solo lleva el JRE 21 y el JAR, y corre con un usuario sin privilegios. Por eso el contexto de build es la raíz del repositorio.
+- **Red:** todos los contenedores están en la red `logistica-net` y se llaman por nombre de servicio (`postgres`, `keycloak`, `pedidos-service`, `despacho-service`). Los `application.yml` no cambian: el compose pisa las URLs con las variables de entorno que ya existían.
+- **Keycloak:** tiene fija la URL pública `http://localhost:8180`, así que todos los tokens salen con el mismo emisor, los pida Postman desde el host o un servicio desde la red interna. Los servicios validan ese emisor y bajan las claves por `http://keycloak:8180`.
+- **Orden de arranque:** Keycloak y los servicios esperan a que PostgreSQL esté sano, y el gateway espera a los dos servicios (healthchecks contra `/actuator/health/readiness`).
+- **Datos:** PostgreSQL guarda en el volumen `logistica-postgres-data`, que sobrevive a `docker compose down`.
+- **Configuración:** sin archivo `.env` se usan los valores por defecto. Para cambiar alguno (mail, OSRM, contraseñas de administración), copiar `.env.example` a `.env`.
+- **OSRM y Gmail** son servicios externos y quedan fuera del compose.
+
+Dos formas de levantarlo:
+
+| Comando | Qué publica |
+|---|---|
+| `docker compose up --build -d` | Desarrollo: suma `docker-compose.override.yml` y publica también los servicios (Swagger UI en 8081 y 8082) y la base (5433) |
+| `docker compose -f docker-compose.yml up --build -d` | Solo el gateway (8080) y Keycloak (8180); los servicios y la base quedan dentro de la red |
+
+Comandos útiles:
+
+```bash
+docker compose ps                          # estado y salud de cada contenedor
+docker compose logs -f pedidos-service     # log de un servicio (ahí se ve "Mail enviado a ...")
+docker compose exec postgres psql -U postgres -f /infra/reset-datos.sql   # volver los datos al estado inicial
+docker compose down                        # detener (los datos se conservan)
+docker compose down -v                     # detener y borrar los datos
+```
+
+La colección de Postman funciona igual que en local, con el mismo entorno: el gateway sigue en `localhost:8080` y Keycloak en `localhost:8180`. Si los servicios o Keycloak ya están corriendo fuera de Docker, hay que detenerlos antes, porque usan los mismos puertos.
+
+## Puesta en marcha (local, sin Docker)
 
 Requisitos: JDK 21+, Maven 3.9+, PostgreSQL 17 y Keycloak 26.
 
@@ -228,7 +278,7 @@ La carpeta `postman/` tiene todo lo necesario:
 
 | Archivo | Para qué |
 |---|---|
-| `TPI-Logistica.postman_collection.json` | Colección ejecutable: 53 requests en orden, cada una con sus `pm.test` |
+| `TPI-Logistica.postman_collection.json` | Colección ejecutable: 39 requests en 5 apartados, cada una con sus `pm.test` |
 | `Local.postman_environment.json` | Entorno con las URLs, la fecha, los tokens y los ids que se van encadenando |
 | `Guia-pruebas-Postman.pdf` | Guía paso a paso: arranque, ejecución y escenarios que se prueban a mano |
 
@@ -238,7 +288,17 @@ Con los servicios levantados, se corre completa desde Postman (Import de los dos
 postman collection run postman/TPI-Logistica.postman_collection.json -e postman/Local.postman_environment.json
 ```
 
-Resultado esperado: 53 requests y 91 verificaciones sin fallas. Las carpetas siguen el proceso: `0. Auth` → `1. Datos maestros` → `2. Cliente` → `3. Planificación` → `4. Ejecución` → `5. Seguimiento` → `6. Negativos y seguridad`.
+Resultado esperado: 39 requests y 73 verificaciones sin fallas. Son cinco apartados que siguen el proceso, pensados para que cada integrante presente uno:
+
+| Apartado | Qué muestra |
+|---|---|
+| `1. Autenticación y datos maestros` | Login de cada rol contra Keycloak, consulta de la semilla y alta y baja de un vehículo |
+| `2. Cliente: perfil y pedidos` | Perfil del comercio, alta de pedidos y rechazo de un pedido inválido |
+| `3. Planificación (despachante)` | Armado de rutas, pedido no asignable y su reprogramación, cancelación de un pedido asignado |
+| `4. Ejecución de la ruta (repartidor)` | Inicio de la ruta, entrega, intento fallido y controles de quién puede hacer qué |
+| `5. Seguimiento, mails y seguridad` | Estado final e historial (un mail por cambio), distancias con OSRM y accesos rechazados |
+
+**Mails:** cada cambio de estado de un pedido manda un mail al email del perfil del cliente, que la colección toma de la variable `emailPruebas` del entorno (por defecto, la misma cuenta remitente), con copia oculta a las casillas de `notificaciones.mail.copia`. La API no informa si Gmail aceptó el envío; se confirma en la bandeja o en el log de pedidos-service (`Mail enviado a ...` o `No se pudo enviar el mail ...`).
 
 **Para repetirla el mismo día** hay que volver los datos al estado inicial, porque un vehículo y un repartidor hacen una sola ruta por día (RN11):
 
@@ -333,7 +393,7 @@ Requieren detener un servicio a mitad de camino, así que no están en la colecc
 | Componente común en JAR Maven | ✅ `logistica-commons` 1.2.0, instalado en `.m2` |
 | Persistencia en DBMS relacional | ✅ PostgreSQL, una base por servicio |
 | APIs REST validadas y documentadas con OpenAPI | ✅ Bean Validation, códigos HTTP coherentes y Swagger UI |
-| Contenerización y Docker Compose | ⏸️ **Pendiente a propósito.** Se quitó por ahora; las dependencias Maven se mantienen. |
+| Contenerización y Docker Compose | ✅ Un Dockerfile por servicio (build multi-stage) y `docker-compose.yml` con PostgreSQL, Keycloak, los dos microservicios y el gateway |
 | Diagramas C4 (C1 y C2) y de secuencia | ✅ En este README, actualizados a la arquitectura implementada |
 
 Además:
