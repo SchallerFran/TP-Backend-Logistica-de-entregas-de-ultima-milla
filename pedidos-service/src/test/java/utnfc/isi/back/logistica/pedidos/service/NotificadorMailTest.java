@@ -1,13 +1,17 @@
 package utnfc.isi.back.logistica.pedidos.service;
 
+import jakarta.mail.Message.RecipientType;
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
+import utnfc.isi.back.logistica.pedidos.model.CambioEstadoListener.CambioRegistrado;
 import utnfc.isi.back.logistica.pedidos.model.Cliente;
 import utnfc.isi.back.logistica.pedidos.model.Destinatario;
 import utnfc.isi.back.logistica.pedidos.model.EstadoPedido;
@@ -16,6 +20,7 @@ import utnfc.isi.back.logistica.pedidos.repository.ClienteRepository;
 import utnfc.isi.back.logistica.pedidos.repository.PedidoRepository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,7 +36,8 @@ import static org.mockito.Mockito.*;
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.mail.password=clave-test"
+        "spring.mail.password=clave-test",
+        "notificaciones.mail.copia=uno@copia.test,dos@copia.test"
 })
 class NotificadorMailTest {
 
@@ -45,24 +51,46 @@ class NotificadorMailTest {
     @Autowired
     TransactionTemplate tx;
 
+    @BeforeEach
+    void elMockCreaMensajesReales() {
+        when(mailSender.createMimeMessage()).thenAnswer(i -> new MimeMessage((Session) null));
+    }
+
     @Test
-    void mandaUnMailAlClientePorElAltaYPorCadaCambioDeEstado() {
+    void elHtmlEscapaLoQueVieneDelUsuario() {
+        String html = NotificadorMail.html("Tom & <b>Jerry</b>",
+                new CambioRegistrado(7L, EstadoPedido.EN_CAMINO, EstadoPedido.FALLIDO, "<script>x</script>"));
+
+        assertTrue(html.contains("Tom &amp; &lt;b&gt;Jerry&lt;/b&gt;"));
+        assertTrue(html.contains("&lt;script&gt;x&lt;/script&gt;"));
+        assertFalse(html.contains("<script>"));
+        assertTrue(html.contains("Tu pedido #7") && html.contains("EN_CAMINO") && html.contains("Entrega fallida"));
+    }
+
+    @Test
+    void mandaUnMailAlClientePorElAltaYPorCadaCambioDeEstado() throws Exception {
         Long id = tx.execute(s -> pedidoRepository.save(nuevoPedido()).getId());
         tx.executeWithoutResult(s -> pedidoRepository.findById(id).orElseThrow()
                 .cambiarEstado(EstadoPedido.ASIGNADO, "Asignado a la ruta 7", "test"));
 
-        ArgumentCaptor<SimpleMailMessage> enviados = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        ArgumentCaptor<MimeMessage> enviados = ArgumentCaptor.forClass(MimeMessage.class);
         verify(mailSender, timeout(5000).times(2)).send(enviados.capture());
 
-        List<String> asuntos = enviados.getAllValues().stream().map(SimpleMailMessage::getSubject).sorted().toList();
-        assertEquals(List.of("Pedido #" + id + ": asignado a una ruta", "Pedido #" + id + ": recibido"), asuntos);
-        assertArrayEquals(new String[]{"ventas@sur.test"}, enviados.getValue().getTo());
+        List<String> asuntos = new ArrayList<>();
+        for (MimeMessage m : enviados.getAllValues()) {
+            asuntos.add(m.getSubject());
+        }
+        assertEquals(List.of("Pedido #" + id + ": asignado a una ruta", "Pedido #" + id + ": recibido"),
+                asuntos.stream().sorted().toList());
+        MimeMessage ultimo = enviados.getValue();
+        assertEquals("[ventas@sur.test]", List.of(ultimo.getRecipients(RecipientType.TO)).toString());
+        assertEquals("[uno@copia.test, dos@copia.test]", List.of(ultimo.getRecipients(RecipientType.BCC)).toString());
     }
 
     @Test
     void siLaTransaccionSeRevierteNoSaleNingunMail() {
         Long id = tx.execute(s -> pedidoRepository.save(nuevoPedido()).getId());
-        verify(mailSender, timeout(5000).times(1)).send(any(SimpleMailMessage.class));
+        verify(mailSender, timeout(5000).times(1)).send(any(MimeMessage.class));
         clearInvocations(mailSender);
 
         assertThrows(IllegalStateException.class, () -> tx.executeWithoutResult(s -> {
@@ -71,7 +99,7 @@ class NotificadorMailTest {
             throw new IllegalStateException("rollback");
         }));
 
-        verify(mailSender, after(1000).never()).send(any(SimpleMailMessage.class));
+        verify(mailSender, after(1000).never()).send(any(MimeMessage.class));
     }
 
     private Pedido nuevoPedido() {

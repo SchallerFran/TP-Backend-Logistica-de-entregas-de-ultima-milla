@@ -27,7 +27,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: ${GMAIL_USER:ultimamilla.tpbackend@gmail.com}
-    password: ${GMAIL_APP_PASSWORD:UltimaMilla123}
+    password: ${GMAIL_APP_PASSWORD:jhvgvdzyqyjydbqp}
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
@@ -45,6 +45,12 @@ spring:
           # asi que la validacion funciona aunque el host publico no sea alcanzable.
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/logistica}
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/certs}
+
+notificaciones:
+  mail:
+    # Casillas de prueba del TP: reciben copia oculta de cada mail que sale al cliente.
+    # Separadas por coma; si queda vacía no se manda copia.
+    copia: ${MAIL_COPIA:iig2012n@gmail.com,tobyy688@gmail.com,franschaller91@gmail.com}
 
 servicios:
   despacho:
