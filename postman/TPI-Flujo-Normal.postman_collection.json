@@ -1,0 +1,1373 @@
+{
+  "info": {
+    "name": "TPI Logística · Flujo normal",
+    "description": "Un día normal de punta a punta con dos pedidos: el cliente los carga, el despachante planifica, el repartidor entrega uno y falla el otro, y el cliente sigue el estado. En cada paso se verifica la regla de negocio que corresponde (los nombres empiezan con su código RN) y, en los momentos clave, se intenta lo que la regla prohíbe para mostrar que el sistema lo rechaza.\n\nSe corre completa y en orden, con el entorno **Local**:\n`postman collection run postman/TPI-Flujo-Normal.postman_collection.json -e postman/Local.postman_environment.json`\n\n**Antes de correrla:** base limpia (`psql -U postgres -f infra/reset-datos.sql`). Un vehículo y un repartidor hacen una sola ruta por día (RN11) y el cliente arranca sin perfil (RN01).\n\nReglas detalladas: `documentacion/Reglas-de-negocio.pdf`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// fecha = hoy y fechaAyer (hora local), AAAA-MM-DD",
+          "const p = n => String(n).padStart(2, '0');",
+          "const f = d => d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());",
+          "const hoy = new Date(), ayer = new Date(Date.now() - 864e5);",
+          "pm.environment.set('fecha', f(hoy));",
+          "pm.environment.set('fechaAyer', f(ayer));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Preparación",
+      "description": "Login de cada rol contra Keycloak (la contraseña es igual al usuario) y lectura de la flota del centro, que después se usa para verificar las reglas de la planificación (capacidad, autonomía, costo).",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tokenAdmin}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Token cliente1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Devuelve access_token', () => pm.expect(pm.response.json().access_token).to.be.a('string'));",
+                  "pm.environment.set('tokenCliente', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "logistica-public"
+                },
+                {
+                  "key": "username",
+                  "value": "cliente1"
+                },
+                {
+                  "key": "password",
+                  "value": "cliente1"
+                }
+              ]
+            },
+            "url": "{{keycloakUrl}}/protocol/openid-connect/token"
+          }
+        },
+        {
+          "name": "Token despachante1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Devuelve access_token', () => pm.expect(pm.response.json().access_token).to.be.a('string'));",
+                  "pm.environment.set('tokenDespachante', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "logistica-public"
+                },
+                {
+                  "key": "username",
+                  "value": "despachante1"
+                },
+                {
+                  "key": "password",
+                  "value": "despachante1"
+                }
+              ]
+            },
+            "url": "{{keycloakUrl}}/protocol/openid-connect/token"
+          }
+        },
+        {
+          "name": "Token repartidor1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Devuelve access_token', () => pm.expect(pm.response.json().access_token).to.be.a('string'));",
+                  "pm.environment.set('tokenRepartidor1', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "logistica-public"
+                },
+                {
+                  "key": "username",
+                  "value": "repartidor1"
+                },
+                {
+                  "key": "password",
+                  "value": "repartidor1"
+                }
+              ]
+            },
+            "url": "{{keycloakUrl}}/protocol/openid-connect/token"
+          }
+        },
+        {
+          "name": "Token repartidor2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Devuelve access_token', () => pm.expect(pm.response.json().access_token).to.be.a('string'));",
+                  "pm.environment.set('tokenRepartidor2', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "logistica-public"
+                },
+                {
+                  "key": "username",
+                  "value": "repartidor2"
+                },
+                {
+                  "key": "password",
+                  "value": "repartidor2"
+                }
+              ]
+            },
+            "url": "{{keycloakUrl}}/protocol/openid-connect/token"
+          }
+        },
+        {
+          "name": "Token admin1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Devuelve access_token', () => pm.expect(pm.response.json().access_token).to.be.a('string'));",
+                  "pm.environment.set('tokenAdmin', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "logistica-public"
+                },
+                {
+                  "key": "username",
+                  "value": "admin1"
+                },
+                {
+                  "key": "password",
+                  "value": "admin1"
+                }
+              ]
+            },
+            "url": "{{keycloakUrl}}/protocol/openid-connect/token"
+          }
+        },
+        {
+          "name": "Flota del centro",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const v = pm.response.json();",
+                  "pm.test('El centro tiene vehículos', () => pm.expect(v.length).to.be.at.least(1));",
+                  "pm.environment.set('vehiculosCentro', JSON.stringify(v));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/despacho/vehiculos?centroId={{centroId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. El cliente carga sus pedidos",
+      "description": "El comercio registra su perfil y carga dos pedidos para hoy: uno URGENTE y uno NORMAL. Antes de cada paso se intenta lo que la regla prohíbe y el sistema lo rechaza sin crear nada (RN01, RN02, RN03). Cada alta manda el mail \"Pedido #N: recibido\" a `emailPruebas`.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tokenCliente}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "RN01 · Sin perfil no se puede pedir",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));",
+                  "pm.test('Pide registrar el perfil', () => pm.expect(pm.response.text()).to.include('perfil'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.42,\n    \"longitud\": -64.19\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T09:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T18:00:00\",\n  \"requiereFrio\": false\n}"
+            },
+            "description": "Con la base recién reiniciada el cliente todavía no tiene perfil: el pedido se rechaza."
+          }
+        },
+        {
+          "name": "Registrar perfil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201 o 409', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));",
+                  "// 409 si el perfil ya existía: se sigue igual"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/clientes/me",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razonSocial\": \"Comercio Uno SRL\",\n  \"cuit\": \"30-71234567-9\",\n  \"email\": \"{{emailPruebas}}\",\n  \"telefono\": \"3510000000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Email del perfil = emailPruebas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Los mails van a emailPruebas', () => pm.expect(pm.response.json().email).to.eql(pm.environment.get('emailPruebas')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/clientes/me",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailPruebas}}\",\n  \"telefono\": \"3510000000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "RN02 · Ventana invertida",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));",
+                  "pm.test('Explica que la ventana es inválida', () => pm.expect(pm.response.text()).to.include('ventana'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.42,\n    \"longitud\": -64.19\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T18:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T09:00:00\",\n  \"requiereFrio\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "RN02 · Peso no positivo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.be.oneOf([400]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.42,\n    \"longitud\": -64.19\n  },\n  \"pesoKg\": 0,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T09:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T18:00:00\",\n  \"requiereFrio\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "RN03 · Centro inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": 999,\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.42,\n    \"longitud\": -64.19\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T09:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T18:00:00\",\n  \"requiereFrio\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear pedido URGENTE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "const p = pm.response.json();",
+                  "pm.test('Nace RECIBIDO y sin intentos', () => { pm.expect(p.estado).to.eql('RECIBIDO'); pm.expect(p.intentos).to.eql(0); });",
+                  "pm.environment.set('pedidoUrgenteId', p.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.4201,\n    \"longitud\": -64.1888\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"URGENTE\",\n  \"ventanaDesde\": \"{{fecha}}T09:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T18:00:00\",\n  \"requiereFrio\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear pedido NORMAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "const p = pm.response.json();",
+                  "pm.test('Nace RECIBIDO y sin intentos', () => { pm.expect(p.estado).to.eql('RECIBIDO'); pm.expect(p.intentos).to.eql(0); });",
+                  "pm.environment.set('pedidoId', p.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"destinatario\": {\n    \"nombre\": \"Destinatario de prueba\",\n    \"telefono\": \"3515550000\",\n    \"direccion\": \"Córdoba\",\n    \"latitud\": -31.4,\n    \"longitud\": -64.2\n  },\n  \"pesoKg\": 10,\n  \"volumenM3\": 0.1,\n  \"prioridad\": \"NORMAL\",\n  \"ventanaDesde\": \"{{fecha}}T09:00:00\",\n  \"ventanaHasta\": \"{{fecha}}T18:00:00\",\n  \"requiereFrio\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "RN05 · El historial arranca en RECIBIDO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const h = pm.response.json();",
+                  "pm.test('Un único cambio: alta RECIBIDO por el sistema', () => {",
+                  "    pm.expect(h.map(c => c.estadoNuevo)).to.eql(['RECIBIDO']);",
+                  "    pm.expect(h[0].realizadoPor).to.eql('SISTEMA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}/cambios"
+          }
+        },
+        {
+          "name": "RN04 · Mis pedidos (solo los propios)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const lista = pm.response.json().content;",
+                  "pm.test('Están los dos pedidos', () => {",
+                  "    const ids = lista.map(p => p.id);",
+                  "    pm.expect(ids).to.include(Number(pm.environment.get('pedidoUrgenteId')));",
+                  "    pm.expect(ids).to.include(Number(pm.environment.get('pedidoId')));",
+                  "});",
+                  "pm.test('Todos son del mismo cliente', () => pm.expect(new Set(lista.map(p => p.clienteId)).size).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos?estado=RECIBIDO"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. El despachante planifica el día",
+      "description": "El despachante arma las rutas del centro para hoy. La respuesta se controla contra la flota leída en el paso 1: capacidad, autonomía, ventanas, costo y una ruta por recurso (RN07-RN11, RN13, RN18). Cada pedido asignado manda el mail \"asignado\".",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tokenDespachante}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "RN12 · No se planifica una fecha pasada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.be.oneOf([409]));",
+                  "pm.test('Código FECHA_PASADA', () => pm.expect(pm.response.json().codigo || pm.response.text()).to.include('FECHA_PASADA'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/despacho/planificaciones",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"fecha\": \"{{fechaAyer}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "RN20 · El cliente no puede planificar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/despacho/planificaciones",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"fecha\": \"{{fecha}}\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Planificar el día",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "",
+                  "const r = pm.response.json();",
+                  "const flota = JSON.parse(pm.environment.get('vehiculosCentro'));",
+                  "const veh = id => flota.find(v => v.id === id);",
+                  "const env = k => Number(pm.environment.get(k));",
+                  "const rutaDe = id => r.rutas.find(x => x.paradas.some(p => p.pedidoId === id));",
+                  "const ruta = rutaDe(env('pedidoUrgenteId'));",
+                  "",
+                  "pm.test('RN13: la planificación queda CONFIRMADA', () => pm.expect(r.estado).to.eql('CONFIRMADA'));",
+                  "pm.test('RN07: el URGENTE quedó asignado', () => pm.expect(ruta).to.be.an('object'));",
+                  "pm.test('RN09: los dos pedidos cercanos van en la misma ruta', () =>",
+                  "    pm.expect(ruta.paradas.map(p => p.pedidoId)).to.include(env('pedidoId')));",
+                  "pm.test('RN08: carga dentro de la capacidad del vehículo', () => r.rutas.forEach(x => {",
+                  "    const v = veh(x.vehiculoId);",
+                  "    pm.expect(x.paradas.reduce((s, p) => s + p.pesoKg, 0)).to.be.at.most(v.pesoMaxKg);",
+                  "    pm.expect(x.paradas.reduce((s, p) => s + p.volumenM3, 0)).to.be.at.most(v.volMaxM3);",
+                  "}));",
+                  "pm.test('RN08: km totales dentro de la autonomía', () => r.rutas.forEach(x =>",
+                  "    pm.expect(x.kmTotal).to.be.at.most(veh(x.vehiculoId).autonomiaKm)));",
+                  "pm.test('RN08: cada llegada estimada cae dentro de la ventana del pedido', () => r.rutas.forEach(x => x.paradas.forEach(p => {",
+                  "    pm.expect(new Date(p.etaEstimada) >= new Date(p.ventanaDesde)).to.be.true;",
+                  "    pm.expect(new Date(p.etaEstimada) <= new Date(p.ventanaHasta)).to.be.true;",
+                  "})));",
+                  "pm.test('RN09: costo = km × costo por km del vehículo', () => r.rutas.forEach(x =>",
+                  "    // kmTotal viene redondeado a 2 decimales: tolerancia de 0,01 km",
+                  "    pm.expect(x.costoTotal).to.be.closeTo(x.kmTotal * veh(x.vehiculoId).costoPorKm, veh(x.vehiculoId).costoPorKm * 0.01)));",
+                  "pm.test('RN09: usa el vehículo más barato de la flota', () =>",
+                  "    pm.expect(veh(ruta.vehiculoId).costoPorKm).to.eql(Math.min(...flota.filter(v => v.disponible).map(v => v.costoPorKm))));",
+                  "pm.test('RN11: ningún vehículo ni repartidor repite ruta', () => {",
+                  "    pm.expect(new Set(r.rutas.map(x => x.vehiculoId)).size).to.eql(r.rutas.length);",
+                  "    pm.expect(new Set(r.rutas.map(x => x.repartidorId)).size).to.eql(r.rutas.length);",
+                  "});",
+                  "pm.test('RN18: informa de dónde salieron las distancias', () => pm.expect(r.fuentesDistancia).to.be.an('object'));",
+                  "",
+                  "pm.environment.set('rutaId', ruta.id);",
+                  "// El planificador elige el repartidor: se usa el token del que recibió la ruta",
+                  "const esJuan = ruta.repartidor.includes('Juan');",
+                  "pm.environment.set('tokenRepartidorRuta', pm.environment.get(esJuan ? 'tokenRepartidor1' : 'tokenRepartidor2'));",
+                  "pm.environment.set('tokenRepartidorOtro', pm.environment.get(esJuan ? 'tokenRepartidor2' : 'tokenRepartidor1'));",
+                  "console.log('Ruta ' + ruta.id + ': ' + ruta.patente + ' con ' + ruta.repartidor + ', ' + ruta.kmTotal.toFixed(1) + ' km, $' + ruta.costoTotal.toFixed(0) + ' (fuentes: ' + JSON.stringify(r.fuentesDistancia) + ')');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/despacho/planificaciones",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centroId\": {{centroId}},\n  \"fecha\": \"{{fecha}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "RN13 · Los pedidos pasaron a ASIGNADO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const h = pm.response.json();",
+                  "pm.test('RECIBIDO > ASIGNADO', () => pm.expect(h.map(c => c.estadoNuevo)).to.eql(['RECIBIDO', 'ASIGNADO']));",
+                  "pm.test('El motivo indica la ruta', () => pm.expect(h[1].motivo).to.include(pm.environment.get('rutaId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}/cambios"
+          }
+        },
+        {
+          "name": "Rutas del día",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Todas CONFIRMADAS (ninguna quedó en BORRADOR)', () => pm.expect(pm.response.json().every(r => r.estado === 'CONFIRMADA')).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/despacho/rutas?fecha={{fecha}}&centroId={{centroId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. El repartidor hace la ruta",
+      "description": "El repartidor que recibió la ruta la consulta, la inicia, entrega el URGENTE y no encuentra al destinatario del NORMAL. Entre medio se intenta lo que las reglas no permiten (RN06, RN14, RN15). Los avisos a pedidos-service salen por el outbox (RN17).",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tokenRepartidorRuta}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Mi ruta de hoy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const r = pm.response.json();",
+                  "pm.test('Es la ruta planificada, CONFIRMADA', () => { pm.expect(r.id).to.eql(Number(pm.environment.get('rutaId'))); pm.expect(r.estado).to.eql('CONFIRMADA'); });",
+                  "pm.test('Paradas PENDIENTES y numeradas en orden', () => r.paradas.forEach((p, i) => { pm.expect(p.estado).to.eql('PENDIENTE'); pm.expect(p.orden).to.eql(i + 1); }));",
+                  "const parada = k => r.paradas.find(p => p.pedidoId === Number(pm.environment.get(k))).id;",
+                  "pm.environment.set('paradaUrgenteId', parada('pedidoUrgenteId'));",
+                  "pm.environment.set('paradaNormalId', parada('pedidoId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta"
+          }
+        },
+        {
+          "name": "RN15 · No se registra una entrega sin iniciar la ruta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.be.oneOf([409]));",
+                  "pm.test('Código RUTA_NO_EN_CURSO', () => pm.expect(pm.response.text()).to.include('RUTA_NO_EN_CURSO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaUrgenteId}}/resultado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resultado\": \"ENTREGADA\"\n}"
+            }
+          }
+        },
+        {
+          "name": "RN14 · Otro repartidor no puede iniciarla",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/inicio",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenRepartidorOtro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Iniciar ruta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Ruta EN_CURSO', () => pm.expect(pm.response.json().estado).to.eql('EN_CURSO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/inicio"
+          }
+        },
+        {
+          "name": "RN14 · No se inicia dos veces",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.be.oneOf([409]));",
+                  "pm.test('Código RUTA_NO_CONFIRMADA', () => pm.expect(pm.response.text()).to.include('RUTA_NO_CONFIRMADA'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/inicio"
+          }
+        },
+        {
+          "name": "RN17 · Los pedidos pasaron a EN_CAMINO",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(() => {}, 3000); // el aviso a pedidos-service sale por el outbox, en segundo plano"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('EN_CAMINO (aviso por outbox)', () => pm.expect(pm.response.json().estado).to.eql('EN_CAMINO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RN06 · Ya no se puede cancelar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}/cancelacion",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Me arrepentí\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Entregar el URGENTE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const r = pm.response.json();",
+                  "pm.test('Parada ENTREGADA', () => pm.expect(r.paradas.find(p => p.id === Number(pm.environment.get('paradaUrgenteId'))).estado).to.eql('ENTREGADA'));",
+                  "pm.test('Con una parada pendiente la ruta sigue EN_CURSO', () => pm.expect(r.estado).to.eql('EN_CURSO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaUrgenteId}}/resultado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resultado\": \"ENTREGADA\"\n}"
+            }
+          }
+        },
+        {
+          "name": "RN15 · La misma parada no se registra dos veces",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.be.oneOf([409]));",
+                  "pm.test('Código PARADA_CON_RESULTADO', () => pm.expect(pm.response.text()).to.include('PARADA_CON_RESULTADO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaUrgenteId}}/resultado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resultado\": \"ENTREGADA\"\n}"
+            }
+          }
+        },
+        {
+          "name": "RN15 · Un fallo sin motivo se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.be.oneOf([400]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaNormalId}}/resultado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resultado\": \"FALLIDA\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Fallo en el NORMAL (destinatario ausente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const r = pm.response.json();",
+                  "pm.test('Parada FALLIDA con su motivo', () => { const p = r.paradas.find(x => x.id === Number(pm.environment.get('paradaNormalId'))); pm.expect(p.estado).to.eql('FALLIDA'); pm.expect(p.motivoFallo).to.eql('Destinatario ausente'); });",
+                  "pm.test('RN15: con todas las paradas resueltas la ruta queda FINALIZADA', () => pm.expect(r.estado).to.eql(r.paradas.every(p => p.estado !== 'PENDIENTE') ? 'FINALIZADA' : 'EN_CURSO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/despacho/mi-ruta/{{rutaId}}/paradas/{{paradaNormalId}}/resultado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resultado\": \"FALLIDA\",\n  \"motivo\": \"Destinatario ausente\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Seguimiento y cierre",
+      "description": "Estado final de los dos pedidos y su historial: cada cambio es un mail que le llegó al cliente. Cierra con los controles de seguridad del gateway (RN05, RN16, RN17, RN19, RN20).",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{tokenCliente}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "El URGENTE quedó ENTREGADO",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(() => {}, 3000); // el aviso a pedidos-service sale por el outbox, en segundo plano"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('ENTREGADO', () => pm.expect(pm.response.json().estado).to.eql('ENTREGADO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}"
+          }
+        },
+        {
+          "name": "RN16 · El NORMAL vuelve a la cola con 1 intento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const p = pm.response.json();",
+                  "pm.test('RECIBIDO con intentos = 1 (al 2do fallo pasaría a DEVUELTO)', () => { pm.expect(p.estado).to.eql('RECIBIDO'); pm.expect(p.intentos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoId}}"
+          }
+        },
+        {
+          "name": "RN05 · Historial del URGENTE (un mail por cambio)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const h = pm.response.json();",
+                  "pm.test('RECIBIDO > ASIGNADO > EN_CAMINO > ENTREGADO', () => pm.expect(h.map(c => c.estadoNuevo)).to.eql(['RECIBIDO', 'ASIGNADO', 'EN_CAMINO', 'ENTREGADO']));",
+                  "pm.test('Cada cambio encadena con el anterior', () => h.slice(1).forEach((c, i) => pm.expect(c.estadoAnterior).to.eql(h[i].estadoNuevo)));",
+                  "pm.test('Cada cambio tiene fecha y autor', () => h.forEach(c => { pm.expect(c.fecha).to.be.ok; pm.expect(c.realizadoPor).to.be.ok; }));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}/cambios"
+          }
+        },
+        {
+          "name": "RN05 · Historial del NORMAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const h = pm.response.json();",
+                  "pm.test('... EN_CAMINO > FALLIDO > RECIBIDO', () => pm.expect(h.map(c => c.estadoNuevo)).to.eql(['RECIBIDO', 'ASIGNADO', 'EN_CAMINO', 'FALLIDO', 'RECIBIDO']));",
+                  "pm.test('El fallo guarda el motivo del repartidor', () => pm.expect(h[3].motivo).to.include('ausente'));",
+                  "pm.test('El reintento lo hace el SISTEMA', () => pm.expect(h[4].realizadoPor).to.eql('SISTEMA'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoId}}/cambios"
+          }
+        },
+        {
+          "name": "RN19 · Un pedido ENTREGADO no se reprograma",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/pedidos/{{pedidoUrgenteId}}/reprogramacion",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Prueba\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDespachante}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RN17 · No quedaron avisos con error",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Lista vacía', () => pm.expect(pm.response.json().length).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/despacho/notificaciones?estado=ERROR",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDespachante}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RN20 · Sin token no se entra",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.expect(pm.response.code).to.be.oneOf([401]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/pedidos",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "RN20 · /internal no se publica en el gateway",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401 o 403', () => pm.expect(pm.response.code).to.be.oneOf([401, 403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/internal/pedidos/pendientes?centroId={{centroId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDespachante}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
