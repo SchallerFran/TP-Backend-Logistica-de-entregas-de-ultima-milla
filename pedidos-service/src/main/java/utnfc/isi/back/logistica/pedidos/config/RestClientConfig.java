@@ -22,13 +22,6 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 
-/**
- * RestClient hacia despacho-service con client_credentials.
- *
- * El registro OAuth2 se arma a mano desde las propiedades keycloak.* que ya
- * existen en application.yml (en vez de spring.security.oauth2.client.*), y el
- * token lo gestiona y cachea Spring Security (OAuth2AuthorizedClientManager).
- */
 @Configuration
 public class RestClientConfig {
 
@@ -37,7 +30,6 @@ public class RestClientConfig {
     private static final Duration TIMEOUT_CONEXION = Duration.ofSeconds(2);
     private static final Duration TIMEOUT_LECTURA = Duration.ofSeconds(3);
 
-    /** Principal fijo: el token es de la aplicacion, no del usuario que dispara la llamada. */
     private static final Authentication PRINCIPAL_SERVICIO = new AnonymousAuthenticationToken(
             "pedidos-service", "pedidos-service", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
 

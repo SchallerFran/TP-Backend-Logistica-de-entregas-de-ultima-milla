@@ -20,13 +20,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Ejecución en la calle (repartidor) y supervisión (despachante).
- * <p>
- * Nada de esto llama a pedidos-service en forma sincrónica: el cambio en la ruta/parada y la
- * notificación para pedidos se guardan en la MISMA transacción (outbox). Si pedidos-service está caído,
- * el repartidor puede seguir trabajando y los pedidos se ponen al día cuando vuelva.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,9 +30,7 @@ public class EjecucionRutaService {
     private final ApplicationEventPublisher eventos;
     private final Clock clock;
 
-    // ---------------------------------------------------------------- repartidor
 
-    /** La ruta del repartidor autenticado para la fecha (por defecto, hoy). Sólo rutas ya confirmadas. */
     @Transactional(readOnly = true)
     public RutaResponse miRuta(String keycloakUserId, LocalDate fecha) {
         LocalDate dia = fecha != null ? fecha : LocalDate.now(clock);
@@ -102,7 +93,6 @@ public class EjecucionRutaService {
         return DespachoMapper.aResponse(ruta);
     }
 
-    // ---------------------------------------------------------------- despachante
 
     @Transactional(readOnly = true)
     public List<RutaResponse> buscar(LocalDate fecha, Long centroId, EstadoRuta estado) {
@@ -116,12 +106,7 @@ public class EjecucionRutaService {
                 .orElseThrow(() -> RecursoNoEncontradoException.de("Ruta", rutaId)));
     }
 
-    // ---------------------------------------------------------------- auxiliares
 
-    /**
-     * Autorización por propiedad: el repartidor sólo opera SU ruta.
-     * Se responde 404 (y no 403) si la ruta no existe; 403 si existe pero es de otro.
-     */
     private Ruta rutaDelRepartidor(String keycloakUserId, Long rutaId) {
         Ruta ruta = rutaRepository.findConRecursos(rutaId)
                 .orElseThrow(() -> RecursoNoEncontradoException.de("Ruta", rutaId));

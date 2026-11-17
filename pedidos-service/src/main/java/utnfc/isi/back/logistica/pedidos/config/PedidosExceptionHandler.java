@@ -14,14 +14,6 @@ import utnfc.isi.back.logistica.pedidos.service.ConflictoException;
 import utnfc.isi.back.logistica.pedidos.service.RecursoNoEncontradoException;
 import utnfc.isi.back.logistica.pedidos.service.ServicioNoDisponibleException;
 
-/**
- * Completa al GlobalExceptionHandler del JAR comun (que cubre validacion 400,
- * IllegalArgumentException 422, RestClientException 503, AccessDenied 403,
- * NoResourceFound 404 y generico 500) con las excepciones propias del servicio.
- *
- * Tiene la precedencia mas alta para ganarle al advice comun, y NO declara un
- * handler generico: todo lo que no sea propio sigue cayendo en commons.
- */
 @RestControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class PedidosExceptionHandler {

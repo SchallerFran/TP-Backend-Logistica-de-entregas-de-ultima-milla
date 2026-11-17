@@ -40,16 +40,10 @@ import java.util.Set;
 @NoArgsConstructor
 public class Pedido {
 
-    /** Autor de los cambios de estado automaticos. */
     public static final String USUARIO_SISTEMA = "SISTEMA";
 
-    /** Cantidad de intentos fallidos a partir de la cual el pedido se devuelve. */
     private static final int MAX_INTENTOS = 2;
 
-    /**
-     * Transiciones permitidas. ENTREGADO conserva una unica salida (DEVUELTO)
-     * para casos particulares; DEVUELTO y CANCELADO son finales.
-     */
     private static final Map<EstadoPedido, Set<EstadoPedido>> TRANSICIONES = Map.of(
             EstadoPedido.RECIBIDO, Set.of(EstadoPedido.ASIGNADO, EstadoPedido.NO_ASIGNABLE, EstadoPedido.CANCELADO),
             EstadoPedido.ASIGNADO, Set.of(EstadoPedido.EN_CAMINO, EstadoPedido.CANCELADO),
@@ -80,7 +74,6 @@ public class Pedido {
     })
     private Destinatario destinatario;
 
-    /** Referencia logica al centro de despacho-service (sin relacion JPA). */
     @NotNull
     @Column(name = "centro_id", nullable = false)
     private Long centroId;
@@ -108,7 +101,6 @@ public class Pedido {
     @Column(name = "requiere_frio", nullable = false)
     private boolean requiereFrio = false;
 
-    /** Solo se modifica desde cambiarEstado(). */
     @Enumerated(EnumType.STRING)
     @Setter(AccessLevel.NONE)
     @Column(nullable = false, length = 20)
@@ -136,17 +128,10 @@ public class Pedido {
         }
     }
 
-    /** Historial de cambios: vista no modificable. */
     public List<CambioEstado> getCambios() {
         return Collections.unmodifiableList(cambios);
     }
 
-    /**
-     * Unico punto de modificacion del estado.
-     *
-     * @throws IllegalArgumentException si la transicion no esta permitida
-     *         (el GlobalExceptionHandler del JAR comun la mapea a 422)
-     */
     public void cambiarEstado(EstadoPedido nuevo, String motivo, String usuario) {
         if (nuevo == null) {
             throw new IllegalArgumentException("El nuevo estado es obligatorio");
@@ -162,7 +147,6 @@ public class Pedido {
         this.cambios.add(new CambioEstado(this, anterior, nuevo, motivo, usuario));
     }
 
-    /** Solo antes de salir a la calle. */
     public boolean puedeCancelarse() {
         return estado == EstadoPedido.RECIBIDO
                 || estado == EstadoPedido.ASIGNADO
@@ -176,7 +160,6 @@ public class Pedido {
         cambiarEstado(EstadoPedido.CANCELADO, motivo, usuario);
     }
 
-    /** El despachante devuelve a la cola de planificacion un pedido NO_ASIGNABLE. */
     public void reprogramar(String motivo, String usuario) {
         if (estado != EstadoPedido.NO_ASIGNABLE) {
             throw new IllegalArgumentException("Solo se reprograma un pedido NO_ASIGNABLE, estado actual: " + estado);
@@ -184,11 +167,6 @@ public class Pedido {
         cambiarEstado(EstadoPedido.RECIBIDO, motivo, usuario);
     }
 
-    /**
-     * Registra un intento de entrega fallido. Solo desde EN_CAMINO.
-     * Tras el paso a FALLIDO, el sistema reintenta (vuelve a RECIBIDO) o
-     * devuelve el pedido al alcanzar el maximo de intentos.
-     */
     public void registrarFallo(String motivo, String usuario) {
         if (estado != EstadoPedido.EN_CAMINO) {
             throw new IllegalArgumentException(

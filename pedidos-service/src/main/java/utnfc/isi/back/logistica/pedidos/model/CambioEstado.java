@@ -18,10 +18,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * Registro inmutable de un cambio de estado del pedido.
- * Se crea unicamente desde Pedido.cambiarEstado(): sin setters publicos.
- */
 @Entity
 @Table(name = "cambio_estado")
 @EntityListeners(CambioEstadoListener.class)
@@ -37,7 +33,6 @@ public class CambioEstado {
     @JoinColumn(name = "pedido_id", nullable = false)
     private Pedido pedido;
 
-    /** null en el registro de alta del pedido. */
     @Enumerated(EnumType.STRING)
     @Column(name = "estado_anterior", length = 20)
     private EstadoPedido estadoAnterior;
@@ -49,7 +44,6 @@ public class CambioEstado {
     @Column(length = 255)
     private String motivo;
 
-    /** "sub" del usuario que lo realizo, o "SISTEMA" si fue automatico. */
     @Column(name = "realizado_por", nullable = false, length = 64)
     private String realizadoPor;
 

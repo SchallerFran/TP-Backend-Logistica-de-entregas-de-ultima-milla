@@ -26,7 +26,6 @@ public class Cliente {
     @Setter(AccessLevel.NONE)
     private Long id;
 
-    /** Claim "sub" del JWT de Keycloak. */
     @Column(name = "keycloak_user_id", nullable = false, unique = true, length = 64)
     private String keycloakUserId;
 

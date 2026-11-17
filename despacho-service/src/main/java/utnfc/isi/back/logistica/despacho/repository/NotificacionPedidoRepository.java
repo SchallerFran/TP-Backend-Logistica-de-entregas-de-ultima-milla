@@ -8,7 +8,6 @@ import java.util.List;
 
 public interface NotificacionPedidoRepository extends JpaRepository<NotificacionPedido, Long> {
 
-    /** Pendientes en orden de creación: respeta el orden EN_CAMINO → RESULTADO de cada pedido. */
     List<NotificacionPedido> findTop100ByEstadoOrderByIdAsc(EstadoNotificacion estado);
 
     List<NotificacionPedido> findByEstadoOrderByIdAsc(EstadoNotificacion estado);

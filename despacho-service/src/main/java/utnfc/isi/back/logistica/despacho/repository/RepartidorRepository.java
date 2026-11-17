@@ -19,7 +19,6 @@ public interface RepartidorRepository extends JpaRepository<Repartidor, Long> {
 
     List<Repartidor> findByCentroIdOrderByNombre(Long centroId);
 
-    /** Repartidores activos del centro sin otra ruta en la fecha. */
     @Query("""
             select r from Repartidor r
             where r.centro.id = :centroId

@@ -13,19 +13,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-/**
- * Integración con OSRM (Open Source Routing Machine), servicio de ruteo sobre datos de OpenStreetMap.
- * <p>
- * Usa el servicio {@code table}: una sola consulta devuelve la matriz origenes × destinos de
- * distancias (m) y tiempos (s) por calle. OSRM admite hasta 100 coordenadas por consulta (sumando
- * orígenes y destinos); quien llama (DistanciaService) arma bloques de 50 × 50.
- * <p>
- * El servidor es configurable: el público ({@code router.project-osrm.org}) o uno propio levantado
- * con el mapa de Argentina. Ninguno pide API key.
- * <p>
- * Este cliente sólo traduce HTTP/JSON ↔ Java. Las decisiones (caché, reintentos, fallback) se toman
- * en DistanciaService.
- */
 @Slf4j
 @Component
 public class OsrmClient {
@@ -44,14 +31,9 @@ public class OsrmClient {
         return config.habilitado();
     }
 
-    /** Resultado de un par origen/destino. ok=false si OSRM no encontró ruta por calle. */
     public record Elemento(boolean ok, int metros, int segundos, String status) {
     }
 
-    /**
-     * @return matriz [i][j] con el resultado de origenes[i] → destinos[j]
-     * @throws RuteoNoDisponibleException si no hubo respuesta utilizable
-     */
     public Elemento[][] consultar(List<Coordenada> origenes, List<Coordenada> destinos) {
         if (!habilitado()) {
             throw new RuteoNoDisponibleException("OSRM deshabilitado (sin URL configurada)");
@@ -60,7 +42,6 @@ public class OsrmClient {
             throw new IllegalArgumentException("Máximo " + MAX_POR_LADO + " orígenes/destinos por consulta");
         }
 
-        // Se mandan orígenes y destinos juntos; sources/destinations indican qué posiciones son cada cosa.
         String coordenadas = coordenadas(origenes) + ";" + coordenadas(destinos);
         String sources = indices(0, origenes.size());
         String destinations = indices(origenes.size(), origenes.size() + destinos.size());
@@ -76,7 +57,6 @@ public class OsrmClient {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientException e) {
-            // timeouts, conexión rechazada, 4xx/5xx HTTP (429 si se supera el límite del servidor público)
             throw new RuteoNoDisponibleException("Error HTTP consultando OSRM: " + e.getMessage(), e);
         }
 
@@ -108,7 +88,6 @@ public class OsrmClient {
                 if (d.isNumber() && t.isNumber()) {
                     resultado[i][j] = new Elemento(true, (int) Math.round(d.asDouble()), (int) Math.round(t.asDouble()), "Ok");
                 } else {
-                    // null: no hay camino por calle entre esos dos puntos
                     resultado[i][j] = new Elemento(false, 0, 0, "SIN_RUTA");
                 }
             }
@@ -116,9 +95,7 @@ public class OsrmClient {
         return resultado;
     }
 
-    /** OSRM recibe "longitud,latitud" (primero la longitud) separados por ";". */
     private static String coordenadas(List<Coordenada> puntos) {
-        // Double.toString no depende del Locale: siempre usa punto decimal
         return puntos.stream().map(p -> p.longitud() + "," + p.latitud()).collect(Collectors.joining(";"));
     }
 

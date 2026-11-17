@@ -53,7 +53,6 @@ public class VehiculoService {
         return DespachoMapper.aResponse(v);
     }
 
-    /** Baja lógica: deja de estar disponible para nuevas planificaciones. */
     @Transactional
     public void darDeBaja(Long id) {
         buscar(id).setDisponible(false);

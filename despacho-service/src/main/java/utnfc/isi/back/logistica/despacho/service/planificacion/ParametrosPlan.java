@@ -4,7 +4,6 @@ import utnfc.isi.back.logistica.commons.Coordenada;
 
 import java.time.LocalDate;
 
-/** Contexto fijo de una planificación: qué día, desde qué centro y con qué tiempo de servicio. */
 public record ParametrosPlan(
         LocalDate fecha,
         Coordenada centro,

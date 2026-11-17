@@ -4,11 +4,6 @@ import utnfc.isi.back.logistica.commons.Coordenada;
 
 import java.util.*;
 
-/**
- * Distancias y tiempos de viaje entre todos los pares de un conjunto de puntos.
- * Los puntos se identifican por su coordenada redondeada a 4 decimales (la misma clave que la caché).
- * La matriz NO es simétrica: ida y vuelta por calle pueden diferir (sentidos de circulación).
- */
 public final class MatrizDistancias {
 
     private final Map<Coordenada, Integer> indice;
@@ -51,7 +46,6 @@ public final class MatrizDistancias {
         return fuente(origen, destino) == FuenteDistancia.ESTIMADA;
     }
 
-    /** Cantidad de pares (i≠j) por fuente, para informar al despachante qué tan confiable es el cálculo. */
     public Map<FuenteDistancia, Integer> resumenFuentes() {
         Map<FuenteDistancia, Integer> resumen = new EnumMap<>(FuenteDistancia.class);
         for (int i = 0; i < fuente.length; i++) {

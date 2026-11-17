@@ -5,7 +5,6 @@ import utnfc.isi.back.logistica.pedidos.model.PrioridadPedido;
 
 import java.time.LocalDateTime;
 
-/** Datos minimos que despacho-service necesita para asignar (sin datos personales). */
 public record PedidoPendienteDTO(
         Long id,
         Long centroId,

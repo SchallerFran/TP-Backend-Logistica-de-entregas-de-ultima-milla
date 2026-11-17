@@ -27,18 +27,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
-/**
- * Despachador del outbox (tabla notificacion_pedido) hacia pedidos-service.
- * <p>
- * Se dispara de dos formas:
- * <ul>
- *   <li>inmediatamente después del commit que registró notificaciones (asíncrono: el repartidor no espera);</li>
- *   <li>periódicamente, para reintentar lo que quedó pendiente porque pedidos-service no respondía.</li>
- * </ul>
- * Se procesan en orden de id. Si pedidos-service no responde se corta la vuelta (no tiene sentido seguir
- * intentando) y se retoma en la próxima; así el EN_CAMINO de un pedido siempre llega antes que su resultado.
- * Si pedidos-service rechaza una notificación (4xx) se marca ERROR para revisión del despachante.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -49,7 +37,6 @@ public class NotificacionPedidoService {
     private final DespachoProperties props;
     private final Clock clock;
 
-    /** Evita que la ejecución inmediata y la periódica procesen el outbox al mismo tiempo. */
     private final ReentrantLock lock = new ReentrantLock();
 
     @Async
@@ -66,7 +53,7 @@ public class NotificacionPedidoService {
 
     public void procesarPendientes() {
         if (!lock.tryLock()) {
-            return; // ya hay otra vuelta en curso
+            return;
         }
         try {
             List<NotificacionPedido> pendientes = repo.findTop100ByEstadoOrderByIdAsc(EstadoNotificacion.PENDIENTE);
@@ -80,7 +67,6 @@ public class NotificacionPedidoService {
         }
     }
 
-    /** @return false si pedidos-service no está disponible (cortar la vuelta) */
     private boolean enviar(NotificacionPedido n) {
         n.setIntentos(n.getIntentos() + 1);
         try {
@@ -111,14 +97,12 @@ public class NotificacionPedidoService {
         }
     }
 
-    // ---------------------------------------------------------------- supervisión (despachante)
 
     @Transactional(readOnly = true)
     public List<NotificacionResponse> listar(EstadoNotificacion estado) {
         return repo.findByEstadoOrderByIdAsc(estado).stream().map(DespachoMapper::aResponse).toList();
     }
 
-    /** Vuelve a poner en cola una notificación en ERROR (por ejemplo, después de corregir datos en pedidos). */
     @Transactional
     public NotificacionResponse reencolar(Long id) {
         NotificacionPedido n = repo.findById(id).orElseThrow(() -> RecursoNoEncontradoException.de("Notificación", id));

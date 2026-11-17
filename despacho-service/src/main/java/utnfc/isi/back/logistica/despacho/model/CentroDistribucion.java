@@ -6,7 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Punto desde el que parten y al que vuelven las rutas. */
 @Entity
 @Table(name = "centro_distribucion",
         uniqueConstraints = @UniqueConstraint(name = "uk_centro_nombre", columnNames = "nombre"))

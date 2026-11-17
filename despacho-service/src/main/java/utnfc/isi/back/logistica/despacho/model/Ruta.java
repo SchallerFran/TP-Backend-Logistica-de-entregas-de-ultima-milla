@@ -10,11 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Recorrido de un día que combina un vehículo y un repartidor, con paradas ordenadas.
- * Un vehículo y un repartidor participan de una sola ruta por día (restricciones únicas).
- * El centro de la ruta es el del vehículo.
- */
 @Entity
 @Table(name = "ruta", uniqueConstraints = {
         @UniqueConstraint(name = "uk_ruta_vehiculo_fecha", columnNames = {"vehiculo_id", "fecha"}),
@@ -45,7 +40,6 @@ public class Ruta {
     @Column(name = "costo_total", nullable = false)
     private double costoTotal;
 
-    /** true si alguna distancia salió del fallback (caché vencida / Haversine) y no de OSRM. */
     @Column(nullable = false)
     private boolean estimada;
 
@@ -67,7 +61,6 @@ public class Ruta {
         paradas.add(parada);
     }
 
-    /** Quita la parada del pedido (si está) y renumera el orden de las restantes. */
     public boolean quitarParadaDelPedido(Long pedidoId) {
         boolean quitada = paradas.removeIf(p -> p.getPedidoId().equals(pedidoId));
         if (quitada) {

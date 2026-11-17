@@ -8,10 +8,6 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/**
- * Entrega de un pedido dentro de una ruta. Guarda una COPIA de los datos del pedido al momento de
- * asignar, para poder ejecutar la ruta aunque pedidos-service no responda.
- */
 @Entity
 @Table(name = "parada", uniqueConstraints = {
         @UniqueConstraint(name = "uk_parada_ruta_orden", columnNames = {"ruta_id", "orden"}),
@@ -33,7 +29,6 @@ public class Parada {
     @Column(nullable = false)
     private int orden;
 
-    /** Referencia lógica al pedido de pedidos-service (sin FK). */
     @Column(name = "pedido_id", nullable = false)
     private Long pedidoId;
 

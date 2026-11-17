@@ -9,10 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * API interna para pedidos-service. Sólo accesible con token de cuenta de servicio (rol SERVICE) y
- * el gateway NO la enruta: no existe desde afuera del sistema.
- */
 @Tag(name = "Interna (servicio a servicio)", description = "Sólo rol SERVICE. No expuesta por el gateway.")
 @RestController
 @RequestMapping("/internal")

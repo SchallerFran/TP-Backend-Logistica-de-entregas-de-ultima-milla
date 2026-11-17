@@ -4,10 +4,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
 
-/**
- * scanBasePackages incluye el paquete del JAR comun para levantar
- * GlobalExceptionHandler y KeycloakRoleConverter sin auto-configuracion.
- */
 @SpringBootApplication(scanBasePackages = {
         "utnfc.isi.back.logistica.pedidos",
         "utnfc.isi.back.logistica.commons"

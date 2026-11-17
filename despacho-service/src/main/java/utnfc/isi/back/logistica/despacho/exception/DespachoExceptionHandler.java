@@ -23,16 +23,6 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Tiene precedencia sobre el GlobalExceptionHandler de logistica-commons (mismo nombre de clase
- * evitado a proposito para que no choquen los beans) porque maneja las excepciones propias de despacho.
- * Errores en formato ProblemDetail (RFC 7807), como recomienda el Apunte 18.
- * Se agrega la propiedad "codigo" para que el cliente distinga casos sin parsear el texto.
- * <pre>
- * 400 datos inválidos · 403 no es su recurso · 404 no existe · 409 regla de negocio / estado
- * 503 dependencia caída · 500 inesperado (sin detalles internos)
- * </pre>
- */
 @Slf4j
 @RestControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)

@@ -19,7 +19,6 @@ public class ClienteService {
         this.clienteRepository = clienteRepository;
     }
 
-    /** Crea el perfil del usuario autenticado. El sub del JWT es la identidad. */
     @Transactional
     public ClienteDTO crearPerfil(String keycloakUserId, CrearClienteRequest request) {
         if (clienteRepository.findByKeycloakUserId(keycloakUserId).isPresent()) {
@@ -56,7 +55,6 @@ public class ClienteService {
         return clienteRepository.findAll(pageable).map(ClienteDTO::from);
     }
 
-    /** Usa la regla del modelo: Cliente.desactivar(). */
     @Transactional
     public ClienteDTO desactivar(Long id) {
         Cliente cliente = clienteRepository.findById(id)

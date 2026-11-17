@@ -14,15 +14,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.function.Supplier;
 
-/**
- * Cliente de la API interna de pedidos-service (contrato en el paquete common.dto.internal).
- * <p>
- * Traduce los fallos en dos categorías, porque quien llama actúa distinto en cada caso:
- * <ul>
- *   <li>{@link PedidosNoDisponibleException}: transitorio (red, timeout, 5xx, 401/403 por token) → reintentar.</li>
- *   <li>{@link PedidosRechazoException}: pedidos dijo que no (404/409/422) → no reintentar.</li>
- * </ul>
- */
 @Slf4j
 @Component
 public class PedidosClient {
@@ -77,15 +68,12 @@ public class PedidosClient {
         } catch (HttpClientErrorException e) {
             HttpStatusCode status = e.getStatusCode();
             if (status.value() == 401 || status.value() == 403) {
-                // Problema de credenciales entre servicios (config de Keycloak): no es culpa del pedido
                 log.error("pedidos-service rechazó el token de servicio en '{}': {}", operacion, status);
                 throw new PedidosNoDisponibleException("Error de autenticación entre servicios", e);
             }
             throw new PedidosRechazoException(status.value(),
                     "pedidos-service rechazó '" + operacion + "': " + e.getResponseBodyAsString());
         } catch (RuntimeException e) {
-            // ResourceAccessException (red/timeout), HttpServerErrorException (5xx),
-            // errores al obtener el token de Keycloak, etc.
             log.warn("pedidos-service no disponible en '{}': {}", operacion, e.getMessage());
             throw new PedidosNoDisponibleException("pedidos-service no disponible", e);
         }

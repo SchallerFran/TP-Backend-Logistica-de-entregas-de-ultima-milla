@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Recurso de transporte asociado a un centro. */
 @Entity
 @Table(name = "vehiculo",
         uniqueConstraints = @UniqueConstraint(name = "uk_vehiculo_patente", columnNames = "patente"))

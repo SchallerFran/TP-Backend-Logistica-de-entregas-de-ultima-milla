@@ -14,10 +14,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 
-/**
- * Endpoints del repartidor. La identidad sale SIEMPRE del token (claim "sub"), nunca de un parámetro:
- * así un repartidor no puede operar la ruta de otro cambiando un id en la URL.
- */
 @Tag(name = "Mi ruta", description = "Ejecución de la ruta por el repartidor autenticado (REPARTIDOR)")
 @RestController
 @RequestMapping("/api/despacho/mi-ruta")

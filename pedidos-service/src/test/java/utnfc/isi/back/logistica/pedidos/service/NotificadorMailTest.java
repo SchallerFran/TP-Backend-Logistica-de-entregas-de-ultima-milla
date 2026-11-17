@@ -26,10 +26,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-/**
- * De punta a punta: transacción real (H2 en memoria) → listener JPA → evento AFTER_COMMIT → mail.
- * Gmail está simulado (JavaMailSender mock).
- */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:pedidos;MODE=PostgreSQL",
         "spring.datasource.driver-class-name=org.h2.Driver",

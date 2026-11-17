@@ -18,14 +18,12 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-/** Traducción de la respuesta de OSRM (servicio table) a la matriz. Sin red: el servidor es un mock. */
 class OsrmClientTest {
 
     private static final String BASE = "https://osrm.test";
     private static final List<Coordenada> ORIGENES = List.of(Coordenada.of(-31.4135, -64.181));
     private static final List<Coordenada> DESTINOS =
             List.of(Coordenada.of(-31.44, -64.22), Coordenada.of(-34.6037, -58.3816));
-    // longitud,latitud; orígenes primero y después destinos
     private static final String URL = BASE + "/table/v1/driving/-64.181,-31.4135;-64.22,-31.44;-58.3816,-34.6037"
             + "?sources=0&destinations=1;2&annotations=distance,duration";
 

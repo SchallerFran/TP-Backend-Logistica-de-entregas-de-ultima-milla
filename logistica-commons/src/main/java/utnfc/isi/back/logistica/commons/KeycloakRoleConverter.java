@@ -10,11 +10,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Convierte realm_access.roles del JWT de Keycloak en authorities ROLE_*.
- * Se registra como bean via component-scan (los servicios incluyen este
- * paquete en scanBasePackages).
- */
 @Component
 public class KeycloakRoleConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 

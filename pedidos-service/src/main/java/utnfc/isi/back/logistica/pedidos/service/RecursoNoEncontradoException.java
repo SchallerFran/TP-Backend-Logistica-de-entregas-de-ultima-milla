@@ -1,6 +1,5 @@
 package utnfc.isi.back.logistica.pedidos.service;
 
-/** El recurso pedido no existe. Se traduce a 404. */
 public class RecursoNoEncontradoException extends RuntimeException {
 
     public RecursoNoEncontradoException(String mensaje) {

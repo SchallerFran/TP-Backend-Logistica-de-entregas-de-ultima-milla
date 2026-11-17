@@ -21,7 +21,6 @@ public record PedidoDTO(
         int intentos,
         LocalDateTime creadoEn
 ) {
-    /** Mapear siempre dentro de la transaccion (open-in-view esta desactivado). */
     public static PedidoDTO from(Pedido pedido) {
         return new PedidoDTO(
                 pedido.getId(),

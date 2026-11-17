@@ -17,21 +17,6 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * Resuelve distancias y tiempos de viaje reales entre puntos.
- * <p>
- * Estrategia, en orden, para cada par origen → destino:
- * <ol>
- *   <li><b>Caché vigente</b> (distancia_cache, más nueva que el TTL): no se consulta OSRM.</li>
- *   <li><b>OSRM</b> (servicio table), en bloques de 50 × 50, sólo para los pares que faltan.
- *       Lo obtenido se guarda en la caché.</li>
- *   <li><b>Caché vencida</b>: si OSRM no responde/rechaza, se reutiliza el dato viejo (es real).</li>
- *   <li><b>Estimación</b>: Haversine × factor de rodeo y velocidad promedio. El par queda marcado
- *       ESTIMADA y la ruta que lo use, {@code estimada = true}, para que el despachante la revise.</li>
- * </ol>
- * Si OSRM falla en un bloque, no se lo vuelve a llamar en el resto de la operación ("corta el
- * circuito" localmente): insistir contra una API caída o sin cuota sólo agrega latencia.
- */
 @Slf4j
 @Service
 public class DistanciaService {
@@ -49,7 +34,6 @@ public class DistanciaService {
         this.clock = clock;
     }
 
-    /** Distancia entre dos puntos (para el endpoint de consulta). */
     public ResultadoPar entre(Coordenada origen, Coordenada destino) {
         MatrizDistancias m = matriz(List.of(origen, destino));
         return new ResultadoPar(m.km(origen, destino), m.segundos(origen, destino), m.fuente(origen, destino));
@@ -58,7 +42,6 @@ public class DistanciaService {
     public record ResultadoPar(double km, int segundos, FuenteDistancia fuente) {
     }
 
-    /** Matriz completa (todos contra todos) para el conjunto de puntos. */
     public MatrizDistancias matriz(Collection<Coordenada> puntosOriginales) {
         List<Coordenada> puntos = new ArrayList<>(new LinkedHashSet<>(
                 puntosOriginales.stream().map(Coordenada::redondeada).toList()));
@@ -69,7 +52,6 @@ public class DistanciaService {
         LocalDateTime ahora = LocalDateTime.now(clock);
         LocalDateTime limiteVigencia = ahora.minusDays(config.cacheTtlDias());
 
-        // 1) caché (una sola consulta) ------------------------------------------------------------
         Map<String, DistanciaCache> cache = cargarCache(puntos);
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
@@ -86,12 +68,10 @@ public class DistanciaService {
             }
         }
 
-        // 2) OSRM para lo que falta -----------------------------------------------------------------
         if (hayFaltantes(fuente) && osrm.habilitado()) {
             consultarOsrm(puntos, metros, segundos, fuente, cache, ahora);
         }
 
-        // 3) y 4) fallback --------------------------------------------------------------------------
         int estimadas = 0;
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
@@ -118,7 +98,6 @@ public class DistanciaService {
         return new MatrizDistancias(puntos, metros, segundos, fuente);
     }
 
-    // -----------------------------------------------------------------------------------------------
 
     private void consultarOsrm(List<Coordenada> puntos, int[][] metros, int[][] segundos,
                                  FuenteDistancia[][] fuente, Map<String, DistanciaCache> cache,
@@ -140,17 +119,17 @@ public class DistanciaService {
                     res = osrm.consultar(puntos.subList(oi, oFin), puntos.subList(dj, dFin));
                 } catch (RuteoNoDisponibleException e) {
                     log.warn("OSRM no disponible, se usa fallback: {}", e.getMessage());
-                    break externo; // no insistir en esta operación
+                    break externo;
                 }
                 for (int i = oi; i < oFin; i++) {
                     for (int j = dj; j < dFin; j++) {
                         if (fuente[i][j] != null) {
-                            continue; // ya resuelto (caché vigente o mismo punto)
+                            continue;
                         }
                         Elemento e = res[i - oi][j - dj];
                         if (!e.ok()) {
                             log.info("OSRM sin ruta {} → {} (status {})", puntos.get(i), puntos.get(j), e.status());
-                            continue; // queda para fallback
+                            continue;
                         }
                         metros[i][j] = e.metros();
                         segundos[i][j] = e.segundos();
@@ -186,7 +165,6 @@ public class DistanciaService {
         try {
             cacheRepository.saveAll(registros);
         } catch (DataIntegrityViolationException e) {
-            // Otra planificación concurrente guardó el mismo par: no es un error, la caché es best-effort
             log.debug("Conflicto guardando caché de distancias (concurrencia): {}", e.getMessage());
         }
     }

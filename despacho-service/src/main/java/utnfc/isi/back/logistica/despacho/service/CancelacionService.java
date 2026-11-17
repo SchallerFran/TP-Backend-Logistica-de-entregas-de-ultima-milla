@@ -13,16 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.EnumSet;
 import java.util.List;
 
-/**
- * Cancelación de un pedido ya planificado, invocada por pedidos-service ANTES de pasar el pedido a
- * CANCELADO (API interna). Es la contracara de la confirmación: pedidos es dueño del estado del pedido,
- * despacho es dueño de la ruta.
- * <ul>
- *   <li>Pedido en ruta BORRADOR o CONFIRMADA: se quita la parada y se recalcula la ruta → 204.</li>
- *   <li>Pedido en ruta EN_CURSO con la parada pendiente: ya salió a la calle → 409 (pedidos no debe cancelar).</li>
- *   <li>Pedido en ninguna ruta: no hay nada que hacer → 204 (idempotente).</li>
- * </ul>
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

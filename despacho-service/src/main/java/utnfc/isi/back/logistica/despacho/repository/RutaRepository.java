@@ -18,7 +18,6 @@ public interface RutaRepository extends JpaRepository<Ruta, Long> {
     @Query("select r from Ruta r where r.id = :id")
     Optional<Ruta> findConRecursos(@Param("id") Long id);
 
-    /** Consulta del despachante; centroId y estado son opcionales. */
     @EntityGraph(attributePaths = {"vehiculo", "vehiculo.centro", "repartidor"})
     @Query("""
             select r from Ruta r
@@ -49,7 +48,6 @@ public interface RutaRepository extends JpaRepository<Ruta, Long> {
     Optional<Ruta> findDelRepartidor(@Param("keycloakUserId") String keycloakUserId,
                                      @Param("fecha") LocalDate fecha);
 
-    /** Ruta no finalizada que contiene al pedido (para la cancelación desde pedidos-service). */
     @Query("""
             select distinct r from Ruta r join r.paradas p
             where p.pedidoId = :pedidoId and r.estado in :estados

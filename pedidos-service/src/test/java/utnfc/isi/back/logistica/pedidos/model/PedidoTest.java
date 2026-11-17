@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Tests de dominio puros: sin Spring, sin base de datos. */
 class PedidoTest {
 
     private static final String USUARIO = "sub-despachante-1";
@@ -37,7 +36,6 @@ class PedidoTest {
         return pedido;
     }
 
-    /** Lleva el pedido hasta EN_CAMINO por transiciones validas. */
     private Pedido pedidoEnCamino() {
         Pedido pedido = nuevoPedido();
         pedido.cambiarEstado(EstadoPedido.ASIGNADO, "asignado a repartidor", USUARIO);
@@ -215,7 +213,6 @@ class PedidoTest {
             Pedido pedido = pedidoEnCamino();
             pedido.registrarFallo("nadie en el domicilio", USUARIO);
 
-            // segundo reparto
             pedido.cambiarEstado(EstadoPedido.ASIGNADO, null, USUARIO);
             pedido.cambiarEstado(EstadoPedido.EN_CAMINO, null, USUARIO);
             int cambiosPrevios = pedido.getCambios().size();

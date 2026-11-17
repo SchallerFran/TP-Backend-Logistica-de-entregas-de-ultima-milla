@@ -23,10 +23,6 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
-/**
- * Orden de respaldo de distancias: caché vigente → OSRM → caché vencida → estimación.
- * Sin Spring ni base: repositorio y cliente OSRM simulados, reloj fijo.
- */
 class DistanciaServiceTest {
 
     private static final ZoneId ZONA = ZoneId.of("America/Argentina/Cordoba");

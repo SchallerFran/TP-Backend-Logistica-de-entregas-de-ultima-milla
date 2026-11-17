@@ -19,10 +19,6 @@ spring:
       hibernate:
         format_sql: true
 
-  # Mails de cambio de estado al cliente (Gmail SMTP), con la cuenta de prueba del TP
-  # (condición de la cátedra: credenciales en el application.yml). Gmail solo acepta por SMTP
-  # una "contraseña de aplicación" (16 caracteres); con la contraseña normal rechaza el login.
-  # Si la contraseña queda vacía no se envían mails.
   mail:
     host: smtp.gmail.com
     port: 587
@@ -39,17 +35,11 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # issuer-uri = valor esperado del claim "iss" (host publico de Keycloak).
-          # jwk-set-uri = de donde se bajan las claves publicas.
-          # Al definir jwk-set-uri, Spring NO hace el discovery contra el issuer,
-          # asi que la validacion funciona aunque el host publico no sea alcanzable.
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/logistica}
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/certs}
 
 notificaciones:
   mail:
-    # Casillas de prueba del TP: reciben copia oculta de cada mail que sale al cliente.
-    # Separadas por coma; si queda vacía no se manda copia.
     copia: ${MAIL_COPIA:iig2012n@gmail.com,tobyy688@gmail.com,franschaller91@gmail.com}
 
 servicios:
@@ -72,13 +62,10 @@ management:
       probes:
         enabled: true
   health:
-    # Gmail no es parte de la salud del servicio: sin mail, los pedidos funcionan igual
     mail:
       enabled: false
 
 keycloak:
-  # client_credentials para llamar a /internal de despacho-service (rol SERVICE).
-  # El secret por defecto es el de desarrollo de infra/realm-logistica.json.
   token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/token}
   service-client-id: ${SERVICE_CLIENT_ID:logistica-service}
   service-client-secret: ${SERVICE_CLIENT_SECRET:dev-service-secret-cambiar}

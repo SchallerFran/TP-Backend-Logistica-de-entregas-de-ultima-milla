@@ -11,7 +11,6 @@ class CoordenadaTest {
         Coordenada cordoba = Coordenada.of(-31.4135, -64.18105);
         Coordenada rosario = Coordenada.of(-32.9471, -60.6985);
         double km = cordoba.distanciaHaversineKm(rosario);
-        // ~ 368 km en línea recta
         assertTrue(km > 360 && km < 375, "km=" + km);
     }
 

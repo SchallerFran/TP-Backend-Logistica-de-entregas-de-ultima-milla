@@ -1,9 +1,5 @@
 package utnfc.isi.back.logistica.despacho.service.planificacion;
 
-/**
- * Motivo concreto por el que un pedido no entra en ninguna ruta. Se informa a pedidos-service
- * (queda en el historial del pedido) y al despachante, para que pueda intervenir.
- */
 public enum MotivoNoAsignable {
     VENTANA_FUERA_DE_FECHA("La ventana horaria no corresponde a la fecha planificada"),
     FUERA_DE_COBERTURA("El destino está fuera del radio de cobertura del centro"),

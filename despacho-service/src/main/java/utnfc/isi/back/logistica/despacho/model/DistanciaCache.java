@@ -7,10 +7,6 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/**
- * Distancias ya consultadas a OSRM. Reduce costo/cuota y sirve de respaldo si la API no
- * responde. Las coordenadas se guardan redondeadas a 4 decimales (Coordenada.redondeada()).
- */
 @Entity
 @Table(name = "distancia_cache", uniqueConstraints = @UniqueConstraint(
         name = "uk_distancia_par",
@@ -36,15 +32,12 @@ public class DistanciaCache {
     @Column(name = "destino_lng", nullable = false)
     private double destinoLng;
 
-    /** Distancia por calle en metros (OSRM). */
     @Column(nullable = false)
     private int metros;
 
-    /** Tiempo de viaje en segundos (OSRM). */
     @Column(nullable = false)
     private int segundos;
 
-    /** Momento de la consulta, para descartar registros viejos. */
     @Column(nullable = false)
     private LocalDateTime fecha;
 }

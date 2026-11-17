@@ -31,7 +31,6 @@ public class CentroService {
         return DespachoMapper.aResponse(buscar(id));
     }
 
-    /** Para pedidos-service (API interna). */
     @Transactional(readOnly = true)
     public CentroInternoDTO obtenerInterno(Long id) {
         return DespachoMapper.aInterno(buscar(id));
@@ -57,7 +56,6 @@ public class CentroService {
         return DespachoMapper.aResponse(c);
     }
 
-    /** Baja lógica: un centro con historial de rutas no se borra físicamente. */
     @Transactional
     public void desactivar(Long id) {
         buscar(id).setActivo(false);

@@ -8,10 +8,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import utnfc.isi.back.logistica.commons.Coordenada;
 
-/**
- * Datos de entrega del pedido. Las columnas se prefijan con "destinatario_"
- * desde los @AttributeOverrides de Pedido.
- */
 @Embeddable
 @Getter
 @Setter
@@ -37,7 +33,6 @@ public class Destinatario {
     @Column(length = 255)
     private String referencias;
 
-    /** Coordenada del JAR comun (valida rangos y calcula distancia Haversine). */
     public Coordenada coordenada() {
         return new Coordenada(latitud, longitud);
     }

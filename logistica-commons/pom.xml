@@ -4,10 +4,6 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- Parent EXTERNO solamente (gestion de versiones de Spring).
-         Este proyecto NO es modulo de ningun reactor: se construye e instala
-         por separado con "mvn clean install" y los servicios lo consumen
-         desde el repositorio local (.m2). -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -28,8 +24,6 @@
     </properties>
 
     <dependencies>
-        <!-- provided: el JAR no impone versiones de Spring al consumidor.
-             Cada servicio ya trae estos starters con la version de su Boot. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -53,5 +47,4 @@
         </dependency>
     </dependencies>
 
-    <!-- Sin spring-boot-maven-plugin: es un JAR plano de librerias, no un ejecutable. -->
 </project>

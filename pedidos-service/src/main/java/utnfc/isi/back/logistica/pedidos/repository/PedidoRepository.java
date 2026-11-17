@@ -11,6 +11,5 @@ import java.util.List;
 @Repository
 public interface PedidoRepository extends JpaRepository<Pedido, Long>, JpaSpecificationExecutor<Pedido> {
 
-    /** Cola de asignacion de un centro. */
     List<Pedido> findByEstadoAndCentroIdOrderByIdAsc(EstadoPedido estado, Long centroId);
 }

@@ -4,7 +4,6 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- Parent EXTERNO: proyecto Maven independiente, no es modulo de un reactor. -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -21,12 +20,10 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- springdoc 2.9.1 esta construido contra Spring Boot 3.5.16 -->
         <springdoc.version>2.9.1</springdoc.version>
     </properties>
 
     <dependencies>
-        <!-- Requiere "mvn clean install" previo en logistica-commons -->
         <dependency>
             <groupId>utnfc.isi.back.logistica</groupId>
             <artifactId>logistica-commons</artifactId>
@@ -53,7 +50,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
-        <!-- client credentials: despacho pide su token (rol SERVICE) para llamar a /internal de pedidos -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
@@ -92,10 +88,6 @@
 
     <build>
         <plugins>
-            <!-- Desde JDK 23 javac ya no activa el procesamiento de anotaciones
-                 descubierto por classpath: sin esto Lombok no genera nada
-                 (getters, constructores) al compilar con un JDK >= 23.
-                 La version sale de spring-boot-dependencies. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>

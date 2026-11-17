@@ -36,7 +36,6 @@ import java.util.Set;
 @Tag(name = "Pedidos", description = "Alta y seguimiento de pedidos de ultima milla")
 public class PedidoController {
 
-    /** Roles que ven y operan sobre los pedidos de cualquier cliente. */
     private static final Set<String> ROLES_GLOBALES = Set.of("ROLE_DESPACHANTE", "ROLE_ADMIN");
 
     private final PedidoService pedidoService;
@@ -134,7 +133,6 @@ public class PedidoController {
         return pedidoService.reprogramar(id, request.motivo(), jwt.getSubject());
     }
 
-    /** true cuando el usuario solo puede ver y operar sus propios pedidos. */
     private boolean soloPropios(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)

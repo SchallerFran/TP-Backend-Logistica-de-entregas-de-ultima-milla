@@ -8,23 +8,6 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Heurística de inserción más barata ("cheapest insertion") con prioridades.
- * <p>
- * No busca el óptimo matemático (el problema es un VRP con ventanas horarias, NP-difícil) sino un
- * criterio razonable, explicable y que SIEMPRE respeta las restricciones:
- * <ol>
- *   <li>Ordena los pedidos: URGENTE primero; dentro de cada prioridad, el de ventana más temprana
- *       en cerrar (es el que menos margen tiene).</li>
- *   <li>Descarta de entrada los que no pueden ir en ningún caso (fuera de fecha, fuera de cobertura,
- *       requieren frío sin vehículo refrigerado, exceden la capacidad de cualquier vehículo).</li>
- *   <li>Para cada pedido evalúa: insertarlo en cada posición de cada ruta ya abierta, o abrir una
- *       ruta nueva con cada par (vehículo libre, repartidor libre). Descarta las opciones infactibles
- *       (CalculadoraRuta) y elige la de menor costo = km adicionales × costo por km del vehículo.</li>
- *   <li>Si no hay ninguna opción factible, el pedido queda NO asignable con el motivo predominante.</li>
- * </ol>
- * Cada vehículo y cada repartidor se usan en a lo sumo una ruta (regla del dominio).
- */
 public class PlanificadorRutas {
 
     private final CalculadoraRuta calculadora;
@@ -61,7 +44,6 @@ public class PlanificadorRutas {
             Opcion mejor = null;
             Map<MotivoNoAsignable, Integer> rechazos = new EnumMap<>(MotivoNoAsignable.class);
 
-            // a) insertar en una ruta ya abierta
             for (RutaEnConstruccion ruta : rutas) {
                 for (int pos = 0; pos <= ruta.secuencia.size(); pos++) {
                     List<PedidoPendienteDTO> candidata = new ArrayList<>(ruta.secuencia);
@@ -76,7 +58,6 @@ public class PlanificadorRutas {
                 }
             }
 
-            // b) abrir una ruta nueva con un par vehículo/repartidor libre
             for (VehiculoPlan v : vehiculosLibres) {
                 for (RepartidorPlan r : repartidoresLibres) {
                     List<PedidoPendienteDTO> candidata = List.of(pedido);
@@ -86,7 +67,6 @@ public class PlanificadorRutas {
                         continue;
                     }
                     double costo = ev.kmTotal() * v.costoPorKm();
-                    // no "gastar" un vehículo refrigerado en un pedido que no lo necesita, a igual costo
                     boolean desperdiciaFrio = v.tieneFrio() && !pedido.requiereFrio();
                     mejor = elegir(mejor, new Opcion(null, v, r, new ArrayList<>(candidata), ev, costo, desperdiciaFrio));
                 }
@@ -97,7 +77,6 @@ public class PlanificadorRutas {
                 continue;
             }
 
-            // aplicar la mejor opción
             if (mejor.ruta != null) {
                 mejor.ruta.secuencia = mejor.secuencia;
                 mejor.ruta.evaluacion = mejor.evaluacion;
@@ -115,7 +94,6 @@ public class PlanificadorRutas {
         return new ResultadoPlanificacion(resultado, noAsignados);
     }
 
-    /** Reglas que descartan un pedido sin importar cómo se armen las rutas. */
     private Optional<MotivoNoAsignable> prefiltrar(PedidoPendienteDTO p, List<VehiculoPlan> vehiculos,
                                                    ParametrosPlan params) {
         LocalDate fecha = params.fecha();
@@ -154,14 +132,12 @@ public class PlanificadorRutas {
         if (candidata.desperdiciaFrio != actual.desperdiciaFrio) {
             return candidata.desperdiciaFrio ? actual : candidata;
         }
-        // a igual costo, preferir sumar a una ruta existente antes que abrir otra
         if ((candidata.ruta != null) != (actual.ruta != null)) {
             return candidata.ruta != null ? candidata : actual;
         }
-        return actual; // determinístico: gana la primera evaluada
+        return actual;
     }
 
-    /** Elige el motivo más frecuente entre las opciones que se evaluaron y fallaron. */
     private static NoAsignado noAsignable(PedidoPendienteDTO pedido, Map<MotivoNoAsignable, Integer> rechazos) {
         if (rechazos.isEmpty()) {
             return new NoAsignado(pedido, MotivoNoAsignable.SIN_RECURSOS_DISPONIBLES,

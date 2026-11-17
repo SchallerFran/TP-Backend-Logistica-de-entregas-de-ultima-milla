@@ -3,7 +3,6 @@ package utnfc.isi.back.logistica.despacho.dto;
 import utnfc.isi.back.logistica.despacho.dto.internal.CentroInternoDTO;
 import utnfc.isi.back.logistica.despacho.model.*;
 
-/** Entidad → DTO. Las entidades nunca salen por los controllers. Llamar dentro de una transacción (LAZY). */
 public final class DespachoMapper {
 
     private DespachoMapper() {

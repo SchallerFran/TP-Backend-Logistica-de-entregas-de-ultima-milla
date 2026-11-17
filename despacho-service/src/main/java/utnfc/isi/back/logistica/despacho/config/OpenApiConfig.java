@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import org.springframework.context.annotation.Configuration;
 
-/** Swagger UI con botón "Authorize" para pegar el access token de Keycloak. */
 @Configuration
 @OpenAPIDefinition(
         info = @Info(title = "despacho-service",

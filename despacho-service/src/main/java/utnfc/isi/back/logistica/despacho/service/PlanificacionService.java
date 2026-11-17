@@ -27,23 +27,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.*;
 
-/**
- * Proceso de asignación (corazón del dominio) y su colaboración con pedidos-service.
- * <p>
- * Se resuelve como una pequeña <b>saga</b> en dos pasos, porque cada servicio tiene su propia base y no
- * hay transacción distribuida:
- * <ol>
- *   <li>despacho arma las rutas y las persiste en <b>BORRADOR</b> (no se las muestra al repartidor);</li>
- *   <li>le pide a pedidos-service, en una sola llamada, que pase los pedidos a ASIGNADO / NO_ASIGNABLE.
- *       Con la respuesta, las rutas pasan a <b>CONFIRMADA</b>, quitando los pedidos que pedidos rechazó
- *       (por ejemplo, cancelados mientras se planificaba).</li>
- * </ol>
- * Si pedidos-service no responde en el paso 2, las rutas quedan en BORRADOR (no bloquean el día: se
- * borran al volver a planificar) y el despachante puede reintentar sólo la confirmación.
- * <p>
- * Las llamadas HTTP se hacen FUERA de las transacciones de base (TransactionTemplate en tramos cortos):
- * no se mantiene una conexión a la base abierta mientras se espera a otro servicio o a OSRM.
- */
 @Slf4j
 @Service
 public class PlanificacionService {
@@ -87,9 +70,6 @@ public class PlanificacionService {
         this.txLectura.setReadOnly(true);
     }
 
-    // =============================================================================================
-    // Planificar
-    // =============================================================================================
 
     public PlanificacionResponse planificar(PlanificacionRequest req) {
         Long centroId = req.centroId();
@@ -98,13 +78,10 @@ public class PlanificacionService {
             throw new ReglaNegocioException("FECHA_PASADA", "No se puede planificar una fecha pasada: " + fecha);
         }
 
-        // 0) las rutas BORRADOR de un intento anterior se descartan: no bloquean el día
         tx.executeWithoutResult(s -> borrarBorradores(centroId, fecha));
 
-        // 1) centro y recursos libres para la fecha (lectura corta)
         Contexto ctx = txLectura.execute(s -> cargarContexto(centroId, fecha));
 
-        // 2) pedidos pendientes: sin pedidos-service no se puede planificar (no hay réplica local)
         List<PedidoPendienteDTO> pendientes;
         try {
             pendientes = pedidosClient.obtenerPendientes(centroId, fecha).stream()
@@ -121,19 +98,16 @@ public class PlanificacionService {
                     List.of(), Map.of(), List.of("No hay pedidos pendientes para el centro y la fecha"));
         }
 
-        // 3) distancias reales (OSRM / caché / estimación)
         List<Coordenada> puntos = new ArrayList<>();
         puntos.add(ctx.params().centro());
         pendientes.forEach(p -> puntos.add(Coordenada.of(p.latitud(), p.longitud())));
         MatrizDistancias matriz = distanciaService.matriz(puntos);
 
-        // 4) planificación (Java puro)
         ResultadoPlanificacion resultado = planificador.planificar(pendientes, ctx.vehiculos(), ctx.repartidores(),
                 ctx.params(), matriz);
         log.info("Planificación centro={} fecha={}: {} pedidos → {} rutas, {} no asignables",
                 centroId, fecha, pendientes.size(), resultado.rutas().size(), resultado.noAsignados().size());
 
-        // 5) persistir en BORRADOR
         List<Long> rutaIds;
         try {
             rutaIds = tx.execute(s -> persistirBorradores(resultado, fecha));
@@ -142,7 +116,6 @@ public class PlanificacionService {
                     "Otro despachante está planificando el mismo centro y fecha. Reintente.");
         }
 
-        // 6) confirmar con pedidos-service
         List<PedidoNoAsignableDTO> noAsignables = resultado.noAsignados().stream()
                 .map(n -> new PedidoNoAsignableDTO(n.pedido().id(), n.motivo().name(), n.detalle()))
                 .toList();
@@ -165,9 +138,6 @@ public class PlanificacionService {
                 conf.rechazados(), fuentes, advertencias);
     }
 
-    // =============================================================================================
-    // Reintentar confirmación (cuando pedidos-service no respondió)
-    // =============================================================================================
 
     public PlanificacionResponse reintentarConfirmacion(PlanificacionRequest req) {
         List<Long> ids = txLectura.execute(s ->
@@ -177,14 +147,12 @@ public class PlanificacionService {
             throw new ReglaNegocioException("SIN_BORRADORES",
                     "No hay rutas en BORRADOR para el centro y la fecha indicados");
         }
-        // En el reintento no se reenvían los no asignables: siguen RECIBIDO y entran en la próxima planificación.
         Confirmacion conf = confirmar(req.centroId(), req.fecha(), ids, List.of(), null);
         int paradas = conf.rutas().stream().mapToInt(r -> r.paradas().size()).sum() + conf.rechazados().size();
         return new PlanificacionResponse(req.centroId(), req.fecha(), conf.estado(), paradas, conf.rutas(), List.of(),
                 conf.rechazados(), Map.of(), conf.advertencias());
     }
 
-    /** Descarta una ruta en BORRADOR (por ejemplo, si el despachante prefiere replanificar más tarde). */
     public void descartarBorrador(Long rutaId) {
         tx.executeWithoutResult(s -> {
             Ruta ruta = rutaRepository.findById(rutaId)
@@ -197,7 +165,6 @@ public class PlanificacionService {
         });
     }
 
-    /** Limpieza diaria: borradores de días pasados que nunca se confirmaron. */
     @Scheduled(cron = "0 15 3 * * *", zone = "${despacho.zona-horaria}")
     public void limpiarBorradoresVencidos() {
         tx.executeWithoutResult(s -> {
@@ -212,9 +179,6 @@ public class PlanificacionService {
         });
     }
 
-    // =============================================================================================
-    // Paso 2 de la saga
-    // =============================================================================================
 
     private record Confirmacion(EstadoPlanificacion estado, List<RutaResponse> rutas,
                                 List<PedidoRechazadoDTO> rechazados, List<String> advertencias) {
@@ -253,7 +217,6 @@ public class PlanificacionService {
             List<Long> quedan = new ArrayList<>();
             for (Long id : rutaIds) {
                 Ruta ruta = rutaRepository.findConRecursos(id).orElseThrow();
-                // Sólo quedan las paradas cuyo pedido fue confirmado como ASIGNADO
                 List<Long> sinConfirmar = ruta.getParadas().stream()
                         .map(Parada::getPedidoId)
                         .filter(pid -> !confirmados.contains(pid))
@@ -276,9 +239,6 @@ public class PlanificacionService {
         return new Confirmacion(estado, mapear(vigentes), rechazados, advertencias);
     }
 
-    // =============================================================================================
-    // Auxiliares
-    // =============================================================================================
 
     private record Contexto(ParametrosPlan params, List<VehiculoPlan> vehiculos, List<RepartidorPlan> repartidores) {
     }
@@ -292,7 +252,6 @@ public class PlanificacionService {
         ParametrosPlan params = new ParametrosPlan(fecha, centro.coordenada(), centro.getRadioCoberturaKm(),
                 props.planificacion().tiempoServicioMin());
 
-        // Vehículos y repartidores sin ruta ese día (los BORRADOR ya se borraron en el paso 0)
         List<VehiculoPlan> vehiculos = new ArrayList<>(vehiculoRepository.findLibresParaFecha(centroId, fecha).stream()
                 .map(v -> new VehiculoPlan(v.getId(), v.getPatente(), v.getPesoMaxKg(), v.getVolMaxM3(),
                         v.getAutonomiaKm(), v.getCostoPorKm(), v.isTieneFrio()))

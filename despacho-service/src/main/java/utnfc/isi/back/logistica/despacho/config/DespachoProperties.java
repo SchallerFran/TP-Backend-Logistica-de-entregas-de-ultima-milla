@@ -4,7 +4,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
 
-/** Parámetros propios del servicio (prefijo "despacho" en application.yml). */
 @ConfigurationProperties(prefix = "despacho")
 public record DespachoProperties(
         String zonaHoraria,

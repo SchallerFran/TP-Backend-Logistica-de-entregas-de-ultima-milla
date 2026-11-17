@@ -24,10 +24,6 @@ import utnfc.isi.back.logistica.pedidos.service.PedidoService;
 
 import java.util.List;
 
-/**
- * API maquina a maquina para despacho-service. No se expone por el gateway.
- * despacho-service informa QUE ocurrio; este servicio decide la transicion.
- */
 @RestController
 @RequestMapping("/internal/pedidos")
 @PreAuthorize("hasRole('SERVICE')")
@@ -81,7 +77,6 @@ public class PedidoInternoController {
         return pedidoService.registrarResultado(id, request.entregado(), request.motivo(), servicio(jwt));
     }
 
-    /** realizadoPor de los cambios automaticos: el client id del token de servicio. */
     private String servicio(Jwt jwt) {
         String azp = jwt.getClaimAsString("azp");
         return azp != null ? azp : SERVICIO_DESCONOCIDO;

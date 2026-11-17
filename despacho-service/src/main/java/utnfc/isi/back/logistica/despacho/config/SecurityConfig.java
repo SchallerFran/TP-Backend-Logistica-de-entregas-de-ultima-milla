@@ -13,21 +13,11 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * despacho-service es un resource server: TODA petición trae un JWT de Keycloak.
- * <p>
- * Defensa en profundidad: el gateway ya filtra por rol, pero el servicio vuelve a validar el token y
- * los roles porque dentro de la red interna alguien podría llamarlo sin pasar por el gateway.
- * <p>
- * Reglas gruesas por URL acá; las reglas por propiedad ("el repartidor sólo su ruta") se controlan
- * en la capa de servicio, porque dependen de datos.
- */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    /** Conversor de roles de Keycloak del JAR comun (bean via scanBasePackages). */
     private final KeycloakRoleConverter keycloakRoleConverter;
 
     public SecurityConfig(KeycloakRoleConverter keycloakRoleConverter) {
@@ -39,26 +29,21 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // API stateless con bearer token: no hay cookies de sesión → CSRF no aplica
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
                                 "/actuator/health/**", "/actuator/info").permitAll()
 
-                        // API interna: sólo cuentas de servicio (client credentials)
                         .requestMatchers("/internal/**").hasRole(Roles.SERVICE)
 
-                        // Datos maestros: lectura para despachante y admin, escritura sólo admin
                         .requestMatchers(HttpMethod.GET, API + "/centros/**", API + "/vehiculos/**",
                                 API + "/repartidores/**").hasAnyRole(Roles.ADMIN, Roles.DESPACHANTE)
                         .requestMatchers(API + "/centros/**", API + "/vehiculos/**",
                                 API + "/repartidores/**").hasRole(Roles.ADMIN)
 
-                        // Repartidor: su ruta del día y la ejecución
                         .requestMatchers(API + "/mi-ruta/**").hasRole(Roles.REPARTIDOR)
 
-                        // Planificación y supervisión
                         .requestMatchers(API + "/planificaciones/**").hasRole(Roles.DESPACHANTE)
                         .requestMatchers(HttpMethod.GET, API + "/rutas/**").hasAnyRole(Roles.DESPACHANTE, Roles.ADMIN)
                         .requestMatchers(API + "/rutas/**").hasRole(Roles.DESPACHANTE)
@@ -71,7 +56,6 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** realm_access.roles -> ROLE_*, y el principal = claim "sub" (id del usuario en Keycloak). */
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();

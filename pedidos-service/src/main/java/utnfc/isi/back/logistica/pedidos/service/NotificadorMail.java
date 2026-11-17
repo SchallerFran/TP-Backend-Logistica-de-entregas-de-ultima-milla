@@ -19,13 +19,6 @@ import utnfc.isi.back.logistica.pedidos.model.Cliente;
 import utnfc.isi.back.logistica.pedidos.model.EstadoPedido;
 import utnfc.isi.back.logistica.pedidos.repository.PedidoRepository;
 
-/**
- * Avisa por mail (Gmail SMTP) al cliente dueño del pedido cada vez que cambia de estado.
- * <p>
- * Sale después del commit (AFTER_COMMIT): sólo se avisa lo que realmente quedó guardado.
- * Es asíncrono y nunca lanza excepciones: si Gmail falla o tarda, el pedido no se entera
- * y sólo queda el error en el log. Sin GMAIL_APP_PASSWORD no se envía nada.
- */
 @Component
 public class NotificadorMail {
 
@@ -35,7 +28,6 @@ public class NotificadorMail {
     private final PedidoRepository pedidoRepository;
     private final String remitente;
     private final boolean habilitado;
-    /** Casillas que reciben copia oculta de cada mail (las de prueba del TP). Vacío: sin copia. */
     private final String[] copia;
 
     public NotificadorMail(JavaMailSender mailSender, PedidoRepository pedidoRepository,
@@ -49,7 +41,6 @@ public class NotificadorMail {
         this.habilitado = !remitente.isBlank() && !password.isBlank();
     }
 
-    // ponytail: un mail por cambio, sin cola ni reintentos. Gmail admite ~500 por día: alcanza para el TP.
     @Async
     @TransactionalEventListener
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
@@ -65,7 +56,6 @@ public class NotificadorMail {
 
         try {
             MimeMessage mensaje = mailSender.createMimeMessage();
-            // multipart: va el HTML y, como alternativa para clientes de correo sin HTML, el texto plano
             MimeMessageHelper mail = new MimeMessageHelper(mensaje, true, "UTF-8");
             mail.setFrom(remitente);
             mail.setTo(cliente.getEmail());
@@ -108,7 +98,6 @@ public class NotificadorMail {
         return sb.append("\nLogística de última milla").toString();
     }
 
-    /** Versión HTML del mail. Estilos en línea y tablas: es lo que respetan los clientes de correo. */
     static String html(String razonSocial, CambioRegistrado cambio) {
         String filas = (cambio.anterior() == null ? "" : fila("Estado anterior", cambio.anterior().name()))
                 + fila("Estado actual", cambio.nuevo().name())
@@ -145,7 +134,6 @@ public class NotificadorMail {
                 capitalizar(titulo(cambio.nuevo())), filas);
     }
 
-    /** Una fila "etiqueta: valor". El valor puede venir del usuario (motivo): siempre se escapa. */
     private static String fila(String etiqueta, String valor) {
         return """
                           <tr>

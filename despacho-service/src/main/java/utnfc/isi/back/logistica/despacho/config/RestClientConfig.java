@@ -17,22 +17,12 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 
-/**
- * Clientes HTTP salientes (RestClient, como en el Apunte 18), cada uno con sus timeouts:
- * sin timeout, un servicio colgado deja colgado también a quien lo llama.
- */
 @Slf4j
 @Configuration
 public class RestClientConfig {
 
-    /** Id de la registración OAuth2 en application.yml (spring.security.oauth2.client.registration.*). */
     public static final String REGISTRACION_KEYCLOAK = "logistica-service";
 
-    /**
-     * Gestor de tokens para client credentials. Se usa la variante "AuthorizedClientService" (y no la
-     * Default) porque las llamadas también salen desde el scheduler, donde no hay request HTTP en curso.
-     * Cachea el token y lo renueva solo cuando vence.
-     */
     @Bean
     OAuth2AuthorizedClientManager authorizedClientManager(ClientRegistrationRepository registraciones) {
         var clientService = new InMemoryOAuth2AuthorizedClientService(registraciones);
@@ -43,11 +33,6 @@ public class RestClientConfig {
         return manager;
     }
 
-    /**
-     * Cliente hacia pedidos-service. Cada request lleva "Authorization: Bearer <token de despacho>",
-     * token que tiene el rol SERVICE y por lo tanto puede entrar a /internal/** de pedidos.
-     * El token propaga la identidad del servicio, no la del usuario: /internal no debe depender de roles humanos.
-     */
     @Bean
     @Qualifier("pedidosRestClient")
     RestClient pedidosRestClient(DespachoProperties props, OAuth2AuthorizedClientManager manager) {
@@ -72,7 +57,6 @@ public class RestClientConfig {
                 .build();
     }
 
-    /** Cliente hacia OSRM (servicio de ruteo). No lleva credenciales. */
     @Bean
     @Qualifier("osrmRestClient")
     RestClient osrmRestClient(DespachoProperties props) {

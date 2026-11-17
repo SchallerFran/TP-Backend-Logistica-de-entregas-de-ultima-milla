@@ -16,10 +16,6 @@ public interface VehiculoRepository extends JpaRepository<Vehiculo, Long> {
 
     List<Vehiculo> findByCentroIdOrderByPatente(Long centroId);
 
-    /**
-     * Vehículos del centro que pueden usarse en la fecha: disponibles y sin otra ruta ese día.
-     * Las rutas en BORRADOR se borran antes de planificar, así que no bloquean.
-     */
     @Query("""
             select v from Vehiculo v
             where v.centro.id = :centroId

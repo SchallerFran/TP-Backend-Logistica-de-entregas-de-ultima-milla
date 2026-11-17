@@ -7,9 +7,6 @@ spring:
 
   cloud:
     gateway:
-      # Prefijo vigente desde Spring Cloud Gateway 4.3:
-      # spring.cloud.gateway.routes quedo deprecado a favor de
-      # spring.cloud.gateway.server.webflux.routes
       server:
         webflux:
           routes:
@@ -30,8 +27,6 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # issuer-uri = valor esperado del claim "iss" (host publico de Keycloak).
-          # jwk-set-uri = de donde se bajan las claves publicas de Keycloak.
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/logistica}
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/logistica/protocol/openid-connect/certs}
 

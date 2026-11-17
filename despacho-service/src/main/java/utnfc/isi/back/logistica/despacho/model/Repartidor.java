@@ -7,7 +7,6 @@ import lombok.Setter;
 
 import java.time.LocalTime;
 
-/** Persona que conduce y realiza las entregas, asociada a un usuario de Keycloak. */
 @Entity
 @Table(name = "repartidor",
         uniqueConstraints = @UniqueConstraint(name = "uk_repartidor_keycloak", columnNames = "keycloak_user_id"))
@@ -23,7 +22,6 @@ public class Repartidor {
     @Column(nullable = false, length = 100)
     private String nombre;
 
-    /** Claim "sub" del usuario en Keycloak. Permite que el repartidor vea sólo su ruta. */
     @Column(name = "keycloak_user_id", nullable = false, length = 64)
     private String keycloakUserId;
 

@@ -4,7 +4,6 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- Parent EXTERNO: proyecto Maven independiente, no es modulo de un reactor. -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -21,9 +20,6 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Release train que corresponde a Spring Boot 3.5.x
-             (spring-cloud-starter-parent 2025.0.3 hereda de Boot 3.5.15).
-             Trae Spring Cloud Gateway 4.3.5. -->
         <spring-cloud.version>2025.0.3</spring-cloud.version>
     </properties>
 
@@ -40,8 +36,6 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Nombre actual del starter (el viejo spring-cloud-starter-gateway
-             quedo como alias deprecado desde Gateway 4.2). -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>

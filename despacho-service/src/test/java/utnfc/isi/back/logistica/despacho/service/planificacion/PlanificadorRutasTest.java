@@ -14,19 +14,14 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Tests del núcleo de planificación. No levantan Spring ni base de datos: el planificador es Java puro.
- * La matriz se arma con distancias "a vuelo de pájaro" para que los números sean predecibles.
- */
 class PlanificadorRutasTest {
 
     private static final LocalDate HOY = LocalDate.of(2026, 10, 20);
-    private static final Coordenada CENTRO = Coordenada.of(-31.4135, -64.1810);   // Córdoba centro
+    private static final Coordenada CENTRO = Coordenada.of(-31.4135, -64.1810);
     private static final ParametrosPlan PARAMS = new ParametrosPlan(HOY, CENTRO, 30, 5);
 
     private final PlanificadorRutas planificador = new PlanificadorRutas(new CalculadoraRuta());
 
-    // ------------------------------------------------------------------ helpers
 
     private static PedidoPendienteDTO pedido(long id, double lat, double lng, double kg, Prioridad prioridad,
                                              LocalTime desde, LocalTime hasta, boolean frio) {
@@ -46,7 +41,6 @@ class PlanificadorRutasTest {
         return new RepartidorPlan(id, "R" + id, LocalTime.of(8, 0), LocalTime.of(17, 0));
     }
 
-    /** Matriz simétrica a partir de Haversine: 1 km = 2 min (30 km/h). */
     private static MatrizDistancias matriz(List<PedidoPendienteDTO> pedidos) {
         LinkedHashSet<Coordenada> set = new LinkedHashSet<>();
         set.add(CENTRO.redondeada());
@@ -72,7 +66,6 @@ class PlanificadorRutasTest {
         return planificador.planificar(pedidos, vehiculos, repartidores, PARAMS, matriz(pedidos));
     }
 
-    // ------------------------------------------------------------------ tests
 
     @Test
     void agrupaPedidosCercanosEnUnaSolaRutaConElVehiculoMasBarato() {
@@ -122,7 +115,7 @@ class PlanificadorRutasTest {
 
     @Test
     void destinoFueraDeCoberturaNoEsAsignable() {
-        var lejos = normal(1, -32.9471, -60.6985, 5);   // Rosario
+        var lejos = normal(1, -32.9471, -60.6985, 5);
         var res = planificar(List.of(lejos), List.of(vehiculo(1, 100, 500, false)), List.of(repartidor(1)));
 
         assertEquals(MotivoNoAsignable.FUERA_DE_COBERTURA, res.noAsignados().get(0).motivo());
@@ -130,7 +123,6 @@ class PlanificadorRutasTest {
 
     @Test
     void ventanaInalcanzableNoEsAsignable() {
-        // ~5 km de viaje = ~10 min; la ventana cierra a las 08:03 y el turno empieza 08:00
         var apurado = pedido(1, -31.4135, -64.2340, 5, Prioridad.NORMAL,
                 LocalTime.of(8, 0), LocalTime.of(8, 3), false);
         var res = planificar(List.of(apurado), List.of(vehiculo(1, 100, 500, false)), List.of(repartidor(1)));
@@ -175,7 +167,6 @@ class PlanificadorRutasTest {
 
     @Test
     void ordenaLasParadasRespetandoVentanas() {
-        // el pedido 1 está más cerca pero su ventana abre tarde; el 2 tiene que ir primero
         var p1 = pedido(1, -31.42, -64.19, 1, Prioridad.NORMAL, LocalTime.of(14, 0), LocalTime.of(16, 0), false);
         var p2 = pedido(2, -31.45, -64.22, 1, Prioridad.NORMAL, LocalTime.of(8, 0), LocalTime.of(9, 0), false);
         var res = planificar(List.of(p1, p2), List.of(vehiculo(1, 100, 500, false)), List.of(repartidor(1)));

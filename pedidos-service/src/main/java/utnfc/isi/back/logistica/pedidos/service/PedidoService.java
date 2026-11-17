@@ -28,10 +28,6 @@ import utnfc.isi.back.logistica.pedidos.repository.PedidoRepository;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Orquesta los casos de uso del pedido. Las reglas de negocio viven en la
- * entidad Pedido: aca solo se resuelven permisos, persistencia e integracion.
- */
 @Service
 public class PedidoService {
 
@@ -54,11 +50,9 @@ public class PedidoService {
 
     @Transactional
     public PedidoDTO crear(String keycloakUserId, CrearPedidoRequest request) {
-        // 1. perfil
         Cliente cliente = clienteRepository.findByKeycloakUserId(keycloakUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Debe registrar su perfil de cliente"));
 
-        // 2. cliente habilitado (regla del modelo)
         if (!cliente.puedeCrearPedidos()) {
             throw new IllegalArgumentException("El cliente esta desactivado y no puede crear pedidos");
         }
@@ -74,12 +68,10 @@ public class PedidoService {
         pedido.setVentanaHasta(request.ventanaHasta());
         pedido.setRequiereFrio(request.requiereFrio());
 
-        // 3. ventana (regla del modelo)
         if (!pedido.ventanaValida()) {
             throw new IllegalArgumentException("La ventana de entrega es invalida: ventanaHasta debe ser posterior a ventanaDesde");
         }
 
-        // 4. centro: 422 si no existe o esta inactivo, 503 si despacho no responde
         CentroDTO centro = despachoClient.obtenerCentro(request.centroId());
         if (!centro.activo()) {
             throw new IllegalArgumentException("El centro de distribucion " + centro.id() + " esta inactivo");
@@ -118,11 +110,6 @@ public class PedidoService {
                 .toList();
     }
 
-    /**
-     * Usa la regla del modelo: Pedido.cancelar(). Un pedido ASIGNADO esta en
-     * una ruta de despacho-service, que es el duenio de la ruta: primero se le
-     * pide quitarlo (422 si ya salio a la calle, 503 si no responde).
-     */
     @Transactional
     public PedidoDTO cancelar(Long id, String motivo, String usuario, boolean soloPropios) {
         Pedido pedido = buscarConAcceso(id, usuario, soloPropios);
@@ -133,7 +120,6 @@ public class PedidoService {
         return PedidoDTO.from(pedido);
     }
 
-    /** NO_ASIGNABLE -> RECIBIDO (DESPACHANTE/ADMIN): vuelve a la cola de planificacion. */
     @Transactional
     public PedidoDTO reprogramar(Long id, String motivo, String usuario) {
         Pedido pedido = buscar(id);
@@ -151,7 +137,6 @@ public class PedidoService {
                 .orElseThrow(() -> RecursoNoEncontradoException.pedido(id));
     }
 
-    /** 404 si no existe; 403 si es un CLIENTE y el pedido no es suyo (regla del modelo). */
     private Pedido buscarConAcceso(Long id, String keycloakUserId, boolean soloPropios) {
         Pedido pedido = buscar(id);
         if (soloPropios && !pedido.perteneceA(keycloakUserId)) {
@@ -160,10 +145,6 @@ public class PedidoService {
         return pedido;
     }
 
-    // ------------------------------------------------------------------
-    // Endpoints internos: despacho-service informa que ocurrio y este
-    // servicio decide la transicion. Todas las operaciones son idempotentes.
-    // ------------------------------------------------------------------
 
     @Transactional(readOnly = true)
     public List<PedidoPendienteDTO> pendientes(Long centroId) {
@@ -172,13 +153,6 @@ public class PedidoService {
                 .toList();
     }
 
-    /**
-     * Confirmacion de una planificacion, en una sola transaccion.
-     * Pedidos de las rutas: RECIBIDO -> ASIGNADO (si ya estaba ASIGNADO se
-     * confirma igual: idempotente). Cualquier otro estado se rechaza para que
-     * despacho-service lo quite de la ruta.
-     * No asignables: RECIBIDO -> NO_ASIGNABLE con el motivo; en otro estado se ignoran.
-     */
     @Transactional
     public ConfirmacionAsignacionResponse confirmarAsignacion(ConfirmacionAsignacionRequest request, String servicio) {
         List<Long> confirmados = new ArrayList<>();
@@ -216,7 +190,6 @@ public class PedidoService {
         return new ConfirmacionAsignacionResponse(confirmados, rechazados);
     }
 
-    /** El repartidor salio con el pedido: EN_CAMINO. */
     @Transactional
     public EstadoActualDTO registrarSalida(Long id, String servicio) {
         Pedido pedido = buscar(id);
@@ -227,11 +200,6 @@ public class PedidoService {
         return EstadoActualDTO.from(pedido);
     }
 
-    /**
-     * entregado = true  -> ENTREGADO.
-     * entregado = false -> Pedido.registrarFallo(), que incrementa intentos y
-     * reintenta (RECIBIDO) o devuelve (DEVUELTO) segun el maximo del modelo.
-     */
     @Transactional
     public EstadoActualDTO registrarResultado(Long id, boolean entregado, String motivo, String servicio) {
         Pedido pedido = buscar(id);
@@ -244,8 +212,6 @@ public class PedidoService {
             return EstadoActualDTO.from(pedido);
         }
 
-        // Reintento del mismo aviso: el fallo ya se proceso y el pedido salio
-        // de EN_CAMINO. Para volver a fallar tiene que haber una nueva salida.
         if (pedido.getEstado() != EstadoPedido.EN_CAMINO
                 && pedido.getIntentos() > 0
                 && (pedido.getEstado() == EstadoPedido.RECIBIDO || pedido.getEstado() == EstadoPedido.DEVUELTO)) {
